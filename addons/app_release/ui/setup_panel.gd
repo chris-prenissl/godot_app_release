@@ -14,7 +14,7 @@ var _checklist: VBoxContainer
 var _message: Label
 var _create_config_button: Button
 var _open_config_button: Button
-var _scaffold_button: Button
+var _scripts_button: Button
 
 var _install_timer: Timer
 var _install_pid := -1
@@ -39,10 +39,20 @@ func _build_ui() -> void:
 	var actions := HBoxContainer.new()
 	add_child(actions)
 
-	var refresh_button := Button.new()
-	refresh_button.text = "Refresh checks"
-	refresh_button.pressed.connect(refresh)
-	actions.add_child(refresh_button)
+	_scripts_button = Button.new()
+	_scripts_button.text = "Install release scripts"
+	_scripts_button.tooltip_text = (
+		"Copy Gemfile and fastlane/{Fastfile,Appfile,Pluginfile} into the project, "
+		+ "create fastlane/.env with placeholder credentials, then run bundle install."
+	)
+	_scripts_button.pressed.connect(_on_scaffold_pressed)
+	actions.add_child(_scripts_button)
+
+	var gitignore_button := Button.new()
+	gitignore_button.text = "Update .gitignore"
+	gitignore_button.tooltip_text = "Keep credentials, logs and build artifacts out of git."
+	gitignore_button.pressed.connect(_on_gitignore_pressed)
+	actions.add_child(gitignore_button)
 
 	_create_config_button = Button.new()
 	_create_config_button.text = "Create config"
@@ -58,20 +68,10 @@ func _build_ui() -> void:
 	_open_config_button.pressed.connect(_on_open_config_pressed)
 	actions.add_child(_open_config_button)
 
-	_scaffold_button = Button.new()
-	_scaffold_button.text = "Install release scripts"
-	_scaffold_button.tooltip_text = (
-		"Copy Gemfile and fastlane/{Fastfile,Appfile,Pluginfile} into the project, "
-		+ "create fastlane/.env with placeholder credentials, then run bundle install."
-	)
-	_scaffold_button.pressed.connect(_on_scaffold_pressed)
-	actions.add_child(_scaffold_button)
-
-	var gitignore_button := Button.new()
-	gitignore_button.text = "Update .gitignore"
-	gitignore_button.tooltip_text = "Keep credentials, logs and build artifacts out of git."
-	gitignore_button.pressed.connect(_on_gitignore_pressed)
-	actions.add_child(gitignore_button)
+	var refresh_button := Button.new()
+	refresh_button.text = "Refresh"
+	refresh_button.pressed.connect(refresh)
+	actions.add_child(refresh_button)
 
 	_message = Label.new()
 	_message.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -99,7 +99,7 @@ func refresh() -> void:
 	var config := AppReleaseConfig.load_project_config()
 	_create_config_button.disabled = config != null
 	_open_config_button.disabled = config == null
-	_scaffold_button.disabled = _install_pid > 0 or (
+	_scripts_button.disabled = _install_pid > 0 or (
 		AppReleaseScaffolder.is_fastlane_scaffolded() and AppReleaseProcess.are_gems_installed()
 	)
 
@@ -208,7 +208,7 @@ func _start_bundle_install() -> void:
 		refresh()
 		return
 
-	_scaffold_button.disabled = true
+	_scripts_button.disabled = true
 	_set_message(
 		_scaffold_summary + "Installing Ruby gems (bundle install), this can take a few minutes..."
 	)
@@ -220,7 +220,7 @@ func _on_install_poll() -> void:
 		return
 	_install_timer.stop()
 	_install_pid = -1
-	_scaffold_button.disabled = false
+	_scripts_button.disabled = false
 
 	if AppReleaseProcess.are_gems_installed():
 		_set_message(
