@@ -3,6 +3,7 @@ extends VBoxContainer
 
 signal fetch_requested(store_id: String)
 signal release_requested(target_id: String)
+signal ci_command_copied(target_label: String)
 
 var target: AppReleaseTarget
 
@@ -10,6 +11,8 @@ var _tree: Tree
 var _status: Label
 var _fetch_button: Button
 var _release_button: Button
+var _ci_command_label: Label
+var _ci_command_edit: LineEdit
 
 
 func setup(release_target: AppReleaseTarget) -> void:
@@ -63,6 +66,41 @@ func setup(release_target: AppReleaseTarget) -> void:
 	_release_button.text = AppReleaseStrings.label_release_to_format % target.display_label()
 	_release_button.pressed.connect(func() -> void: release_requested.emit(target.target_id()))
 	add_child(_release_button)
+
+	var ci_row := HBoxContainer.new()
+	add_child(ci_row)
+
+	_ci_command_label = Label.new()
+	_ci_command_label.text = AppReleaseStrings.ci_command_label
+	ci_row.add_child(_ci_command_label)
+
+	_ci_command_edit = LineEdit.new()
+	_ci_command_edit.editable = false
+	_ci_command_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_ci_command_edit.placeholder_text = AppReleaseStrings.placeholder_ci_command
+	_ci_command_edit.tooltip_text = AppReleaseStrings.tooltip_copy_ci
+	ci_row.add_child(_ci_command_edit)
+
+	var copy_ci_button := Button.new()
+	copy_ci_button.text = AppReleaseStrings.label_copy_ci
+	copy_ci_button.tooltip_text = AppReleaseStrings.tooltip_copy_ci
+	copy_ci_button.pressed.connect(_on_copy_ci_pressed)
+	ci_row.add_child(copy_ci_button)
+
+
+func set_ci_command(command: String) -> void:
+	_ci_command_edit.text = command
+	if command.is_empty():
+		_ci_command_edit.tooltip_text = AppReleaseStrings.tooltip_copy_ci
+	else:
+		_ci_command_edit.tooltip_text = command
+
+
+func _on_copy_ci_pressed() -> void:
+	if _ci_command_edit.text.is_empty():
+		return
+	DisplayServer.clipboard_set(_ci_command_edit.text)
+	ci_command_copied.emit(target.display_label())
 
 
 func update_buttons(release_running: bool, debug_build: bool, ios_supported: bool) -> void:

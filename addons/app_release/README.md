@@ -204,6 +204,75 @@ Release once, or hand-edit `run.env` before invoking the script. Note that the p
 patches the version into `export_presets.cfg` before starting; the script does not, so a
 hand-edited `VERSION` will not reach the export on its own.
 
+## Releasing from CI
+
+For a release triggered by a commit, `run.env` has to be generated **on the runner** — it
+holds absolute paths (`PROJECT_ROOT`, `GODOT_BIN`, `EXTRA_PATH`) that mean nothing on
+another machine, so a committed one would not work. `ci_release.gd` does headlessly what
+pressing Release does in the editor:
+
+```sh
+godot --headless --path . \
+    --script addons/app_release/scripts/ci_release.gd -- \
+    --target play_internal --version 1.4.0 --build "$GITHUB_RUN_NUMBER"
+
+bash addons/app_release/scripts/release.sh .release_tools/run.env
+```
+
+The first command resolves the target from `release_config.tres`, runs the same validation
+the panel runs, patches the version into `export_presets.cfg` and writes `run.env`. The
+second does the export and the upload. Both exit non-zero on failure, so the job fails
+where the problem is.
+
+Press **CI** on any target column to copy that target's exact command — with the version,
+build number, tester groups and debug flag currently in the form — to your clipboard.
+
+`--list` prints the available target ids; `--help` documents the rest.
+
+### Credentials on a runner
+
+**You do not need a `fastlane/.env`.** The lanes read plain environment variables, and
+dotenv ignores the file when it is missing — so export your secrets directly:
+
+```yaml
+env:
+  ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+  ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+  ASC_KEY_PATH: ${{ github.workspace }}/AuthKey.p8   # written from a secret at run time
+  PLAY_JSON_KEY_PATH: ${{ github.workspace }}/play.json
+  FIREBASE_APP_ID_ANDROID: ${{ secrets.FIREBASE_APP_ID_ANDROID }}
+  FIREBASE_SERVICE_CREDENTIALS: ${{ github.workspace }}/firebase.json
+```
+
+The two `*_PATH` variables point at files, so decode those from base64 secrets into the
+workspace before the release step, and delete them afterwards.
+
+Commit `Gemfile`, `Gemfile.lock` and `fastlane/` so the runner can `bundle install` — only
+`fastlane/.env` stays out of git.
+
+### Android signing on a runner
+
+Godot normally reads the release keystore from your Editor Settings, which a runner does
+not have. Pass it through the environment instead:
+
+```
+GODOT_ANDROID_KEYSTORE_RELEASE_PATH      absolute path — the shell will not expand ~
+GODOT_ANDROID_KEYSTORE_RELEASE_USER      key alias
+GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD  key password
+```
+
+Two known traps: the path must be absolute, and setting *some but not all* of the matching
+`GODOT_ANDROID_KEYSTORE_DEBUG_*` variables can break a release export
+([godot#109551](https://github.com/godotengine/godot/issues/109551)) — set all of a group
+or none of it.
+
+### iOS on a runner
+
+Needs a macOS runner with Xcode, plus signing certificates in the keychain — `fastlane
+match`, or importing a `.p12` before the release step. If your target uses the **PCK only**
+build mode it also needs the `.xcodeproj` committed, which many projects deliberately do
+not do; **Godot export** mode avoids that.
+
 ## Security
 
 Credentials only ever live in `fastlane/.env` and in the key files it points at, both
