@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">
+  <rect width="1280" height="720" fill="#20293a"/>
+  <path d="M640 150 720 280h-52v130h-56V280h-52z" fill="#5ac0a0"/>
+  <rect x="560" y="440" width="160" height="20" rx="10" fill="#5ac0a0"/>
+  <text x="640" y="560" fill="#e8eef5" font-family="Helvetica, Arial, sans-serif" font-size="72" font-weight="bold" text-anchor="middle">App Release</text>
+  <text x="640" y="620" fill="#9bb0c4" font-family="Helvetica, Arial, sans-serif" font-size="32" text-anchor="middle">TestFlight · App Store · Firebase · Google Play</text>
+</svg>

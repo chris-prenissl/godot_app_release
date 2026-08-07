@@ -1,0 +1,121 @@
+# fastlane lanes for the App Release Godot plugin.
+#
+# The plugin exports the artifact first and then calls `fastlane <platform> <lane>`,
+# so no lane builds anything — they only upload. Edit freely: this file lives in
+# your project, not in the addon, and a plugin update will not overwrite it.
+#
+# Environment (written by the plugin into .release_tools/run.env, plus your own
+# fastlane/.env):
+#   ARTIFACT_PATH_ABS   absolute path of the artifact to upload
+#   RELEASE_NOTES_FILE  file holding the release notes
+#   RELEASE_GROUPS      comma-separated tester group aliases
+#   PLAY_TRACK          Google Play track for the supply lanes
+#   APP_IDENTIFIER / ANDROID_PACKAGE_NAME / APPLE_TEAM_ID
+#   ASC_KEY_ID / ASC_ISSUER_ID / ASC_KEY_PATH        App Store Connect API key
+#   FIREBASE_APP_ID_ANDROID / FIREBASE_SERVICE_CREDENTIALS
+#   PLAY_JSON_KEY_PATH                               Google Play service account
+
+default_platform(:ios)
+
+PROJECT_ROOT = ENV.fetch("PROJECT_ROOT") { Dir.pwd }
+METADATA_PATH = File.join(PROJECT_ROOT, "fastlane/metadata/android")
+
+def artifact
+  path = ENV["ARTIFACT_PATH_ABS"].to_s
+  UI.user_error!("ARTIFACT_PATH_ABS is not set — run this lane from the Release panel") if path.empty?
+  UI.user_error!("artifact not found: #{path}") unless File.exist?(path)
+  path
+end
+
+def release_notes
+  file = ENV["RELEASE_NOTES_FILE"]
+  return "" unless file && File.exist?(file)
+
+  File.read(file).strip
+end
+
+def tester_groups
+  groups = ENV["RELEASE_GROUPS"].to_s.split(",").map(&:strip).reject(&:empty?)
+  groups.empty? ? nil : groups
+end
+
+def connect_api_key
+  app_store_connect_api_key(
+    key_id: ENV.fetch("ASC_KEY_ID"),
+    issuer_id: ENV.fetch("ASC_ISSUER_ID"),
+    key_filepath: ENV.fetch("ASC_KEY_PATH")
+  )
+end
+
+platform :ios do
+  desc "Upload the IPA to TestFlight"
+  lane :beta do
+    connect_api_key
+    groups = tester_groups
+    upload_to_testflight(
+      ipa: artifact,
+      changelog: release_notes,
+      groups: groups,
+      distribute_external: !groups.nil?,
+      skip_waiting_for_build_processing: false
+    )
+  end
+
+  desc "Upload the IPA to App Store Connect as a new App Store version (not submitted)"
+  lane :release do
+    connect_api_key
+    upload_to_app_store(
+      ipa: artifact,
+      submit_for_review: false,
+      automatic_release: false,
+      force: true,
+      skip_metadata: true,
+      skip_screenshots: true,
+      precheck_include_in_app_purchases: false
+    )
+  end
+end
+
+platform :android do
+  desc "Upload the APK to Firebase App Distribution"
+  lane :firebase do
+    credentials = ENV["FIREBASE_SERVICE_CREDENTIALS"].to_s.strip
+    firebase_app_distribution(
+      app: ENV.fetch("FIREBASE_APP_ID_ANDROID"),
+      android_artifact_type: "APK",
+      android_artifact_path: artifact,
+      release_notes: release_notes,
+      groups: tester_groups&.join(","),
+      service_credentials_file: credentials.empty? ? nil : credentials
+    )
+  end
+
+  desc "Upload the AAB to the Google Play internal testing track"
+  lane :internal do
+    upload_to_play_store(
+      track: "internal",
+      aab: artifact,
+      json_key: ENV.fetch("PLAY_JSON_KEY_PATH"),
+      metadata_path: METADATA_PATH,
+      skip_upload_metadata: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true,
+      skip_upload_changelogs: false
+    )
+  end
+
+  desc "Upload the AAB to the Google Play production track as a draft"
+  lane :production do
+    upload_to_play_store(
+      track: "production",
+      aab: artifact,
+      json_key: ENV.fetch("PLAY_JSON_KEY_PATH"),
+      metadata_path: METADATA_PATH,
+      skip_upload_metadata: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true,
+      skip_upload_changelogs: false,
+      release_status: "draft"
+    )
+  end
+end
