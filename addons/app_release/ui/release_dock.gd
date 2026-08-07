@@ -40,6 +40,7 @@ var _fetch_queue: PackedStringArray = []
 
 var _pending_target_id := ""
 var _fetched_once := false
+var _config_modified_time := 0
 
 
 func _init() -> void:
@@ -47,7 +48,25 @@ func _init() -> void:
 
 
 func _ready() -> void:
+	var filesystem := EditorInterface.get_resource_filesystem()
+	if filesystem != null and not filesystem.filesystem_changed.is_connected(_on_filesystem_changed):
+		filesystem.filesystem_changed.connect(_on_filesystem_changed)
+
 	_reload_config()
+
+
+func _on_filesystem_changed() -> void:
+	if _config_modified_time == _current_config_modified_time():
+		return
+	_reload_config()
+
+
+func _current_config_modified_time() -> int:
+	var path := ProjectSettings.globalize_path(AppReleaseStrings.config_resource_path)
+	if not FileAccess.file_exists(path):
+		return 0
+	return int(FileAccess.get_modified_time(path))
+
 
 func _build_ui() -> void:
 	var release_tab := PanelContainer.new()
@@ -113,6 +132,7 @@ func _build_form() -> Control:
 	_version_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_version_edit.text_submitted.connect(func(_text: String) -> void: _apply_version_to_presets())
 	_version_edit.focus_exited.connect(_apply_version_to_presets)
+	_version_edit.text_changed.connect(func(_text: String) -> void: _update_ci_commands())
 	grid.add_child(_version_edit)
 
 	grid.add_child(_label(AppReleaseStrings.label_build_number))
@@ -122,6 +142,7 @@ func _build_form() -> Control:
 	_build_edit.step = 1
 	_build_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_build_edit.value_changed.connect(func(_value: float) -> void: _apply_version_to_presets())
+	_build_edit.value_changed.connect(func(_value: float) -> void: _update_ci_commands())
 	grid.add_child(_build_edit)
 
 	grid.add_child(_label(AppReleaseStrings.label_test_groups))
@@ -130,7 +151,9 @@ func _build_form() -> Control:
 	_groups_edit.tooltip_text = AppReleaseStrings.tooltip_groups
 	_groups_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_groups_edit.text_changed.connect(
-		func(text: String) -> void: _store_setting(AppReleaseStrings.setting_last_groups, text)
+		func(text: String) -> void:
+			_store_setting(AppReleaseStrings.setting_last_groups, text)
+			_update_ci_commands()
 	)
 	grid.add_child(_groups_edit)
 
@@ -186,6 +209,7 @@ func _label(text: String) -> Label:
 
 
 func _reload_config() -> void:
+	_config_modified_time = _current_config_modified_time()
 	_config = AppReleaseConfig.load_project_config()
 	_rebuild_columns()
 	_restore_form_state()
@@ -213,6 +237,7 @@ func _rebuild_columns() -> void:
 		column.setup(target)
 		column.fetch_requested.connect(_on_fetch_store_requested)
 		column.release_requested.connect(_on_release_pressed)
+		column.ci_command_copied.connect(_on_ci_command_copied)
 		_columns[target.target_id()] = column
 		built.append(column)
 
@@ -269,6 +294,41 @@ func _apply_version_to_presets() -> void:
 			patched.append(target.export_preset)
 	if not patched.is_empty():
 		_status_label.text = AppReleaseStrings.status_presets_updated_format % [version, build]
+
+
+func _update_ci_commands() -> void:
+	if _config == null:
+		return
+	for target_id: String in _columns:
+		var column: _TargetColumn = _columns[target_id]
+		column.set_ci_command(_ci_command_for(column.target))
+
+func _ci_command_for(target: AppReleaseTarget) -> String:
+	var addon_dir := AppReleaseStrings.addon_dir().trim_prefix(
+		AppReleaseStrings.resource_path_prefix
+	)
+	var arguments: PackedStringArray = [
+		"--target %s" % target.target_id(),
+		"--version %s" % _version_edit.text.strip_edges(),
+		"--build %d" % int(_build_edit.value),
+	]
+	var groups := _groups_edit.text.strip_edges()
+	if not groups.is_empty() and target.supports_tester_groups:
+		arguments.append("--groups \"%s\"" % groups)
+	if _debug_check.button_pressed and target.allow_debug_build:
+		arguments.append("--debug")
+
+	return "godot --headless --path . --script %s/%s -- %s && bash %s/%s .release_tools/run.env" % [
+		addon_dir,
+		AppReleaseStrings.ci_release_script,
+		" ".join(arguments),
+		addon_dir,
+		AppReleaseStrings.release_script_posix,
+	]
+
+
+func _on_ci_command_copied(target_label: String) -> void:
+	_status_label.text = AppReleaseStrings.status_ci_copied_format % target_label
 
 
 func _on_release_pressed(target_id: String) -> void:
@@ -461,6 +521,8 @@ func _update_buttons() -> void:
 		var column: _TargetColumn = _columns[target_id]
 		column.update_buttons(running, _debug_check.button_pressed, ios_supported)
 
+	_update_ci_commands()
+
 
 func fetch_all_stores() -> void:
 	if _config == null:
@@ -589,7 +651,9 @@ func _load_setting(key: String, fallback: Variant) -> Variant:
 		return fallback
 	return settings.get_setting(key)
 
-func fetch_all_stores_once() -> void:
+func on_main_screen_shown() -> void:
+	_reload_config()
+
 	if _fetched_once:
 		return
 	_fetched_once = true

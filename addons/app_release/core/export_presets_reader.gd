@@ -40,6 +40,12 @@ static func list_presets() -> Array[Dictionary]:
 		})
 	return presets
 
+static func presets_modified_time() -> int:
+	var path := ProjectSettings.globalize_path(AppReleaseStrings.export_presets_path)
+	if not FileAccess.file_exists(path):
+		return 0
+	return int(FileAccess.get_modified_time(path))
+
 
 static func find_preset(preset_name: String) -> Dictionary:
 	if preset_name.is_empty():
