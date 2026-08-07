@@ -1,0 +1,30 @@
+# Godot
+.godot/
+*.pck
+*.translation
+
+# App Release plugin
+logs/
+.release_tools/
+release-notes/
+
+# fastlane
+fastlane/.env
+fastlane/report.xml
+fastlane/test_output/
+fastlane/metadata/
+vendor/bundle/
+.bundle/
+
+# Build artifacts
+*.ipa
+*.apk
+*.aab
+*.xcarchive/
+*.jks
+*.keystore
+
+# OS / editors
+.DS_Store
+.idea/
+.vscode/
