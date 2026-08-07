@@ -69,6 +69,11 @@ func _current_config_modified_time() -> int:
 
 
 func _build_ui() -> void:
+	_setup_panel = _SetupPanel.new()
+	_setup_panel.name = AppReleaseStrings.tab_setup
+	_setup_panel.config_changed.connect(_reload_config)
+	add_child(_setup_panel)
+	
 	var release_tab := PanelContainer.new()
 	release_tab.name = AppReleaseStrings.tab_release
 	add_child(release_tab)
@@ -95,11 +100,6 @@ func _build_ui() -> void:
 	_log_view.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_log_view.scroll_fit_content_height = false
 	log_box.add_child(_log_view)
-
-	_setup_panel = _SetupPanel.new()
-	_setup_panel.name = AppReleaseStrings.tab_setup
-	_setup_panel.config_changed.connect(_reload_config)
-	add_child(_setup_panel)
 
 	_confirm_dialog = ConfirmationDialog.new()
 	_confirm_dialog.title = AppReleaseStrings.dialog_title
