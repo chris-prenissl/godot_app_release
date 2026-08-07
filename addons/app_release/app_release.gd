@@ -32,7 +32,7 @@ func _make_visible(visible: bool) -> void:
 		return
 	_dock.visible = visible
 	if visible:
-		_dock.fetch_all_stores_once()
+		_dock.on_main_screen_shown()
 
 
 func _get_plugin_name() -> String:

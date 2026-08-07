@@ -2,6 +2,8 @@
 class_name AppReleaseConfig
 extends Resource
 
+@export_tool_button("Save to disk", "Save") var save_action: Callable = save_to_disk
+
 @export var targets: Array[AppReleaseTarget] = []
 
 @export_group("App identity")
@@ -18,6 +20,22 @@ extends Resource
 @export_group("Tools")
 @export var godot_binary_path_override: String = ""
 @export var extra_path_entries: PackedStringArray = []
+
+
+func save_to_disk() -> void:
+	var path := resource_path
+	if path.is_empty():
+		path = AppReleaseStrings.config_resource_path
+
+	var result := ResourceSaver.save(self, path)
+	if result != OK:
+		push_error("App Release: could not save %s (%s)." % [path, error_string(result)])
+		return
+
+	print("App Release: saved %s with %d target(s)." % [path, targets.size()])
+	if Engine.is_editor_hint():
+		EditorInterface.get_resource_filesystem().scan()
+
 
 func bundle_identifier_for(platform: String) -> String:
 	if platform == AppReleaseStrings.platform_ios:
