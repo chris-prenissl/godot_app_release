@@ -4,7 +4,11 @@ extends EditorPlugin
 const _ReleaseDock := preload("ui/release_dock.gd")
 const _ICON_CANDIDATES: PackedStringArray = ["MoveUp", "ArrowUp", "Godot", "Node"]
 
+const _PRESETS_POLL_INTERVAL := 1.0
+
 var _dock: _ReleaseDock
+var _presets_timer: Timer
+var _presets_modified_time := 0
 
 
 func _enter_tree() -> void:
@@ -16,11 +20,47 @@ func _enter_tree() -> void:
 	EditorInterface.get_editor_main_screen().add_child(_dock)
 	_make_visible(false)
 
+	_presets_modified_time = AppReleasePresets.presets_modified_time()
+	_presets_timer = Timer.new()
+	_presets_timer.wait_time = _PRESETS_POLL_INTERVAL
+	_presets_timer.timeout.connect(_on_presets_poll)
+	add_child(_presets_timer)
+	_presets_timer.start()
+
 
 func _exit_tree() -> void:
+	if _presets_timer != null:
+		_presets_timer.queue_free()
+		_presets_timer = null
 	if _dock != null:
 		_dock.queue_free()
 		_dock = null
+
+
+func _on_presets_poll() -> void:
+	var current := AppReleasePresets.presets_modified_time()
+	if current == _presets_modified_time:
+		return
+	_presets_modified_time = current
+
+	_refresh_inspected_presets()
+	if _dock != null:
+		_dock.on_export_presets_changed()
+
+
+func _refresh_inspected_presets() -> void:
+	var inspector := EditorInterface.get_inspector()
+	if inspector == null:
+		return
+
+	var edited := inspector.get_edited_object()
+	if edited is AppReleaseTarget:
+		edited.notify_property_list_changed()
+	elif edited is AppReleaseConfig:
+		edited.notify_property_list_changed()
+		for target in (edited as AppReleaseConfig).targets:
+			if target != null:
+				target.notify_property_list_changed()
 
 
 func _has_main_screen() -> bool:

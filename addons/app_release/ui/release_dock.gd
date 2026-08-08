@@ -82,6 +82,9 @@ func _on_filesystem_changed() -> void:
 		return
 	_reload_config()
 
+func on_export_presets_changed() -> void:
+	_reload_config()
+
 
 func _current_config_modified_time() -> int:
 	var path := ProjectSettings.globalize_path(AppReleaseStrings.config_resource_path)

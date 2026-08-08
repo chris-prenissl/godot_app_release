@@ -102,23 +102,6 @@ const PRODUCTION_STORES: PackedInt32Array = [Store.APP_STORE, Store.PLAY]
 @export var gradle_task: String = ""
 
 
-var _presets_modified_time := 0
-
-func _init() -> void:
-	if not Engine.is_editor_hint():
-		return
-	var filesystem := EditorInterface.get_resource_filesystem()
-	if filesystem != null and not filesystem.filesystem_changed.is_connected(_on_filesystem_changed):
-		filesystem.filesystem_changed.connect(_on_filesystem_changed)
-
-func _on_filesystem_changed() -> void:
-	var current := AppReleasePresets.presets_modified_time()
-	if current == _presets_modified_time:
-		return
-	_presets_modified_time = current
-	notify_property_list_changed()
-
-
 func store_id() -> String:
 	return STORE_IDS[store]
 
