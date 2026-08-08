@@ -277,11 +277,6 @@ godot_export_pack() {
   "$GODOT_BIN" --headless --path "$ROOT" --export-pack "$EXPORT_PRESET" "$pck"
 }
 
-install_android_build_template() {
-  echo "Reinstalling the Android build template"
-  "$GODOT_BIN" --headless --path "$ROOT" --install-android-build-template
-}
-
 build_ios_with_xcode() {
   require_macos
   require_var NATIVE_PROJECT_PATH
@@ -344,7 +339,6 @@ export_project() {
       ;;
     REGENERATE_NATIVE_PROJECT)
       if [ "$PLATFORM" = "android" ]; then
-        install_android_build_template
         godot_export
       else
         require_macos

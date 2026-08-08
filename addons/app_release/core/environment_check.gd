@@ -200,6 +200,8 @@ static func check_targets(config: AppReleaseConfig) -> Array[Dictionary]:
 			_platform_export_docs(platform)
 		))
 
+	results.append_array(_check_android_build_template(config))
+
 	if AppReleaseStrings.platform_ios in platforms:
 		results.append(_entry(
 			"Apple team id",
@@ -236,6 +238,38 @@ static func check_targets(config: AppReleaseConfig) -> Array[Dictionary]:
 		results.append(_entry(
 			target.display_label(), error.is_empty(), detail, hint,
 			Level.ERROR, _target_docs(target)
+		))
+
+	return results
+
+static func _check_android_build_template(config: AppReleaseConfig) -> Array[Dictionary]:
+	var results: Array[Dictionary] = []
+	var reported: PackedStringArray = []
+
+	for target in config.enabled_targets():
+		if not target.is_android():
+			continue
+		var preset := AppReleasePresets.find_preset(target.export_preset)
+		if not AppReleasePresets.uses_gradle_build(preset):
+			continue
+
+		var relative := AppReleasePresets.android_build_template_dir(preset)
+		if relative in reported:
+			continue
+		reported.append(relative)
+
+		var absolute := ProjectSettings.globalize_path(
+			AppReleaseStrings.resource_path_prefix + relative
+		)
+		
+		var installed := FileAccess.file_exists(absolute.path_join("build.gradle"))
+		results.append(_entry(
+			"Android build template",
+			installed,
+			relative if installed else "Not installed at %s" % relative,
+			"Run Project > Install Android Build Template in the Godot editor.",
+			Level.ERROR,
+			AppReleaseStrings.docs_godot_gradle_build
 		))
 
 	return results

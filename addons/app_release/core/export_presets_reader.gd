@@ -47,6 +47,23 @@ static func presets_modified_time() -> int:
 	return int(FileAccess.get_modified_time(path))
 
 
+static func uses_gradle_build(preset: Dictionary) -> bool:
+	if preset.is_empty():
+		return false
+	var options: Dictionary = preset["options"]
+	return bool(options.get("gradle_build/use_gradle_build", false))
+
+
+static func android_build_template_dir(preset: Dictionary) -> String:
+	if preset.is_empty():
+		return "android/build"
+	var options: Dictionary = preset["options"]
+	var gradle_dir := str(options.get("gradle_build/gradle_build_directory", "")).strip_edges()
+	if gradle_dir.is_empty():
+		gradle_dir = "android"
+	return gradle_dir.trim_prefix(AppReleaseStrings.resource_path_prefix).path_join("build")
+
+
 static func find_preset(preset_name: String) -> Dictionary:
 	if preset_name.is_empty():
 		return {}

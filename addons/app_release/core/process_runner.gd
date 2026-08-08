@@ -119,21 +119,6 @@ static func bundle_install_command(
 	return {"executable": _first_available(_BASH_CANDIDATES), "arguments": posix_argv}
 
 
-static func install_android_build_template(godot_binary_override: String) -> Dictionary:
-	var root := ProjectSettings.globalize_path(AppReleaseStrings.resource_path_prefix)
-	var output: Array = []
-	var code := OS.execute(
-		godot_binary(godot_binary_override),
-		["--headless", "--path", root, "--install-android-build-template"],
-		output,
-		true
-	)
-	return {
-		"ok": code == 0,
-		"output": "\n".join(PackedStringArray(output)).strip_edges(),
-	}
-
-
 static func kill_process_tree(pid: int) -> void:
 	if pid <= 0:
 		return

@@ -185,12 +185,6 @@ try {
     New-Item -ItemType Directory -Force -Path (Split-Path -Parent $artifact) | Out-Null
     $exportFlag = if ($debugBuild) { "--export-debug" } else { "--export-release" }
 
-    if ($buildMode -eq "REGENERATE_NATIVE_PROJECT") {
-        Write-Log "Reinstalling the Android build template"
-        & $godot --headless --path $root --install-android-build-template 2>&1 | ForEach-Object { Write-Log $_ }
-        if ($LASTEXITCODE -ne 0) { Stop-WithError "installing the Android build template failed ($LASTEXITCODE)" }
-    }
-
     Write-Log "Exporting preset `"$preset`" ($exportFlag) -> $artifactRel"
     & $godot --headless --path $root $exportFlag $preset $artifact 2>&1 | ForEach-Object { Write-Log $_ }
     if ($LASTEXITCODE -ne 0) { Stop-WithError "the Godot export failed ($LASTEXITCODE)" }
