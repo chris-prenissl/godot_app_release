@@ -40,6 +40,7 @@ var _fetch_pid := -1
 var _fetch_store := ""
 var _fetch_out_path := ""
 var _fetch_queue: PackedStringArray = []
+var _store_rows: Dictionary = {}
 
 var _pending_target_id := ""
 var _fetched_once := false
@@ -265,6 +266,7 @@ func _show_setup_tab() -> void:
 
 func _rebuild_columns() -> void:
 	for child in _columns_box.get_children():
+		_columns_box.remove_child(child)
 		child.queue_free()
 	_columns.clear()
 
@@ -300,6 +302,9 @@ func _rebuild_columns() -> void:
 	_notes_hint.visible = targets.any(
 		func(candidate: AppReleaseTarget) -> bool: return candidate.release_notes_are_not_possible()
 	)
+
+	for store_id: String in _store_rows:
+		_fill_store_columns(store_id, _store_rows[store_id])
 
 	_update_buttons()
 
@@ -630,6 +635,7 @@ func _on_fetch_store_poll() -> void:
 			rows = data.get("releases", [])
 
 	if error.is_empty():
+		_store_rows[_fetch_store] = rows
 		_fill_store_columns(_fetch_store, rows)
 	else:
 		_set_store_status(_fetch_store, AppReleaseStrings.status_error_format % error)
