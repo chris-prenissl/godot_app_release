@@ -17,7 +17,7 @@ compatibility/default_parent_skeleton_in_mesh_instance_3d=true
 config/name="App Release"
 config/description="Host project for the App Release editor plugin."
 config/features=PackedStringArray("4.7")
-config/icon="res://icon.svg"
+config/icon="res://icon.png"
 
 [debug]
 
