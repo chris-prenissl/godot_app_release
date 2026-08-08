@@ -5,6 +5,7 @@ const _TargetColumn := preload("target_column.gd")
 const _SetupPanel := preload("setup_panel.gd")
 
 const _POLL_INTERVAL := 0.5
+const _TAB_FONT_SIZE_INCREASE := 6
 const _EXIT_FILE_GRACE_TICKS := 4
 
 var _config: AppReleaseConfig
@@ -16,9 +17,11 @@ var _notes_edit: TextEdit
 var _notes_hint: Label
 var _debug_check: CheckBox
 var _status_label: Label
+var _open_setup_button: Button
 var _stop_button: Button
 var _log_view: TextEdit
 var _columns_box: VBoxContainer
+var _release_tab: PanelContainer
 var _setup_panel: _SetupPanel
 
 var _columns: Dictionary = {}
@@ -41,6 +44,7 @@ var _fetch_queue: PackedStringArray = []
 var _pending_target_id := ""
 var _fetched_once := false
 var _config_modified_time := 0
+var _setup_tab_index := 0
 
 
 func _init() -> void:
@@ -48,11 +52,29 @@ func _init() -> void:
 
 
 func _ready() -> void:
+	_setup_tab_index = get_tab_idx_from_control(_setup_panel)
+	current_tab = get_tab_idx_from_control(_release_tab)
+	_setup_tab_bar_size()
+
 	var filesystem := EditorInterface.get_resource_filesystem()
 	if filesystem != null and not filesystem.filesystem_changed.is_connected(_on_filesystem_changed):
 		filesystem.filesystem_changed.connect(_on_filesystem_changed)
 
 	_reload_config()
+
+
+func _setup_tab_bar_size() -> void:
+	var editor_theme := EditorInterface.get_editor_theme()
+	if editor_theme == null:
+		return
+
+	var base_size := editor_theme.get_font_size("font_size", "TabContainer")
+	if base_size <= 0:
+		base_size = editor_theme.get_default_font_size()
+	if base_size > 0:
+		add_theme_font_size_override("font_size", base_size + _TAB_FONT_SIZE_INCREASE)
+
+	tab_alignment = TabBar.ALIGNMENT_CENTER
 
 
 func _on_filesystem_changed() -> void:
@@ -73,15 +95,31 @@ func _build_ui() -> void:
 	_setup_panel.name = AppReleaseStrings.tab_setup
 	_setup_panel.config_changed.connect(_reload_config)
 	add_child(_setup_panel)
-	
-	var release_tab := PanelContainer.new()
-	release_tab.name = AppReleaseStrings.tab_release
-	add_child(release_tab)
+
+	_release_tab = PanelContainer.new()
+	_release_tab.name = AppReleaseStrings.tab_release
+	add_child(_release_tab)
 
 	var root := VBoxContainer.new()
-	release_tab.add_child(root)
+	_release_tab.add_child(root)
 
 	root.add_child(_build_form())
+
+	var status_row := HBoxContainer.new()
+	root.add_child(status_row)
+
+	_status_label = Label.new()
+	_status_label.text = AppReleaseStrings.label_idle
+	_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_status_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	status_row.add_child(_status_label)
+
+	_open_setup_button = Button.new()
+	_open_setup_button.text = AppReleaseStrings.label_open_setup
+	_open_setup_button.tooltip_text = AppReleaseStrings.tooltip_open_setup
+	_open_setup_button.visible = false
+	_open_setup_button.pressed.connect(_show_setup_tab)
+	status_row.add_child(_open_setup_button)
 
 	var split := VSplitContainer.new()
 	split.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -194,11 +232,6 @@ func _build_form() -> Control:
 	_stop_button.pressed.connect(_on_stop_pressed)
 	side_box.add_child(_stop_button)
 
-	_status_label = Label.new()
-	_status_label.text = AppReleaseStrings.label_idle
-	_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	side_box.add_child(_status_label)
-
 	return top
 
 
@@ -214,9 +247,17 @@ func _reload_config() -> void:
 	_rebuild_columns()
 	_restore_form_state()
 	_setup_panel.refresh()
+
+	var needs_setup := _config == null or _config.enabled_targets().is_empty()
+	_open_setup_button.visible = needs_setup
 	if _config == null:
 		_status_label.text = AppReleaseStrings.error_no_config
-		current_tab = get_tab_count() - 1
+	elif _config.enabled_targets().is_empty():
+		_status_label.text = AppReleaseStrings.error_no_targets
+
+
+func _show_setup_tab() -> void:
+	current_tab = _setup_tab_index
 
 
 func _rebuild_columns() -> void:

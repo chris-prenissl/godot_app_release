@@ -123,6 +123,10 @@ const tooltip_copy_ci: StringName = (
 const status_ci_copied_format: StringName = "CI command for %s copied to the clipboard."
 const label_release_to_format: StringName = "Release to %s"
 const label_idle: StringName = "Idle"
+const label_open_setup: StringName = "Open Setup"
+const tooltip_open_setup: StringName = (
+	"Go to the Setup tab to create release_config.tres and check what else is missing."
+)
 const label_press_fetch: StringName = "Press Fetch to load"
 
 const placeholder_version: StringName = "0.1.0"
