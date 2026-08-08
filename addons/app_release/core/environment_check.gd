@@ -28,21 +28,26 @@ static func check_tools() -> Array[Dictionary]:
 			"PowerShell",
 			AppReleaseProcess.has_command("powershell.exe"),
 			"Runs the bundled release script.",
-			"PowerShell ships with Windows; check your PATH if this fails."
+			"PowerShell ships with Windows; check your PATH if this fails.",
+			Level.ERROR,
+			AppReleaseStrings.docs_fastlane_android
 		))
 		results.append(_entry(
 			"iOS support",
 			false,
 			"iOS targets need macOS with Xcode; Android targets work here.",
 			"Run iOS releases from a Mac.",
-			Level.WARNING
+			Level.WARNING,
+			AppReleaseStrings.docs_godot_export_ios
 		))
 	else:
 		results.append(_entry(
 			"bash",
 			AppReleaseProcess.has_command("bash"),
 			"Runs the bundled release script.",
-			"Install bash, or run releases from a terminal instead."
+			"Install bash, or run releases from a terminal instead.",
+			Level.ERROR,
+			AppReleaseStrings.docs_godot_command_line
 		))
 
 	var ruby := AppReleaseProcess.probe_version("ruby")
@@ -51,19 +56,25 @@ static func check_tools() -> Array[Dictionary]:
 		"Ruby",
 		ruby_major >= 3,
 		ruby if not ruby.is_empty() else "Not found.",
-		"Install Ruby 3 or newer (brew install ruby) — fastlane cannot run on macOS's system Ruby 2.6."
+		"Install Ruby 3 or newer (brew install ruby) — fastlane cannot run on macOS's system Ruby 2.6.",
+		Level.ERROR,
+		AppReleaseStrings.docs_ruby
 	))
 
 	var bundler := AppReleaseProcess.probe_version("bundle")
 	results.append(_entry(
 		"Bundler", not bundler.is_empty(), bundler,
-		"gem install bundler"
+		"gem install bundler",
+		Level.ERROR,
+		AppReleaseStrings.docs_bundler
 	))
 
 	var fastlane := AppReleaseProcess.probe_version("fastlane", ["--version"])
 	results.append(_entry(
 		"fastlane", not fastlane.is_empty(), fastlane,
-		"brew install fastlane, or gem install fastlane"
+		"brew install fastlane, or gem install fastlane",
+		Level.ERROR,
+		AppReleaseStrings.docs_fastlane_install
 	))
 
 	if AppReleaseProcess.is_macos():
@@ -71,13 +82,16 @@ static func check_tools() -> Array[Dictionary]:
 		results.append(_entry(
 			"Xcode", not xcode.is_empty(), xcode,
 			"Install Xcode from the App Store — required for iOS targets only.",
-			Level.WARNING
+			Level.WARNING,
+			AppReleaseStrings.docs_xcode
 		))
 
 	var godot := OS.get_executable_path()
 	results.append(_entry(
 		"Godot binary", FileAccess.file_exists(godot), godot,
-		"Set a Godot binary override in release_config.tres."
+		"Set a Godot binary override in release_config.tres.",
+		Level.ERROR,
+		AppReleaseStrings.docs_godot_command_line
 	))
 
 	return results
@@ -90,7 +104,9 @@ static func check_project_files(config: AppReleaseConfig) -> Array[Dictionary]:
 		"export_presets.cfg",
 		not AppReleasePresets.list_presets().is_empty(),
 		"%d preset(s) found." % AppReleasePresets.list_presets().size(),
-		"Add an export preset under Project > Export first."
+		"Add an export preset under Project > Export first.",
+		Level.ERROR,
+		AppReleaseStrings.docs_godot_export
 	))
 
 	results.append(_entry(
@@ -105,14 +121,18 @@ static func check_project_files(config: AppReleaseConfig) -> Array[Dictionary]:
 		"fastlane files",
 		scaffolded,
 		"Gemfile + fastlane/{Fastfile,Appfile,Pluginfile}" if scaffolded else "Missing.",
-		"Press \"Install release scripts\" at the top."
+		"Press \"Install release scripts\" at the top.",
+		Level.ERROR,
+		AppReleaseStrings.docs_fastlane_ios
 	))
 
 	results.append(_entry(
 		"Ruby gems installed",
 		AppReleaseProcess.are_gems_installed(),
 		"bundle check",
-		"Press \"Install release scripts\" at the top."
+		"Press \"Install release scripts\" at the top.",
+		Level.ERROR,
+		AppReleaseStrings.docs_bundler
 	))
 
 	var env_path := ProjectSettings.globalize_path("res://fastlane/.env")
@@ -120,7 +140,9 @@ static func check_project_files(config: AppReleaseConfig) -> Array[Dictionary]:
 		"fastlane/.env",
 		FileAccess.file_exists(env_path),
 		env_path,
-		"Press \"Install release scripts\" at the top, then fill in your store credentials."
+		"Press \"Install release scripts\" at the top, then fill in your store credentials.",
+		Level.ERROR,
+		AppReleaseStrings.docs_fastlane_keys
 	))
 
 	var gitignore_missing := PackedStringArray()
@@ -140,7 +162,8 @@ static func check_project_files(config: AppReleaseConfig) -> Array[Dictionary]:
 		gitignore_missing.is_empty(),
 		"Missing: %s" % ", ".join(gitignore_missing) if not gitignore_missing.is_empty() else "Complete.",
 		"Press \"Update .gitignore\" at the top — credentials and logs must stay out of git.",
-		Level.WARNING
+		Level.WARNING,
+		AppReleaseStrings.docs_godot_version_control
 	))
 
 	return results
@@ -154,7 +177,9 @@ static func check_targets(config: AppReleaseConfig) -> Array[Dictionary]:
 	if config.enabled_targets().is_empty():
 		results.append(_entry(
 			"Targets", false, "No enabled targets.",
-			"Open release_config.tres and add a target, starting with its export preset."
+			"Open release_config.tres and add a target, starting with its export preset.",
+			Level.ERROR,
+			AppReleaseStrings.docs_godot_export
 		))
 		return results
 
@@ -170,7 +195,9 @@ static func check_targets(config: AppReleaseConfig) -> Array[Dictionary]:
 			label,
 			identity_error.is_empty(),
 			config.bundle_identifier_for(platform) if identity_error.is_empty() else "Not set.",
-			"Set it under \"App identity\" in release_config.tres."
+			"Set it under \"App identity\" in release_config.tres.",
+			Level.ERROR,
+			_platform_export_docs(platform)
 		))
 
 	if AppReleaseStrings.platform_ios in platforms:
@@ -179,7 +206,8 @@ static func check_targets(config: AppReleaseConfig) -> Array[Dictionary]:
 			not config.apple_team_id.is_empty(),
 			config.apple_team_id if not config.apple_team_id.is_empty() else "Not set.",
 			"Set it under \"App identity\" in release_config.tres.",
-			Level.WARNING
+			Level.WARNING,
+			AppReleaseStrings.docs_app_store_connect_api
 		))
 
 	for target in config.enabled_targets():
@@ -200,17 +228,53 @@ static func check_targets(config: AppReleaseConfig) -> Array[Dictionary]:
 					false,
 					"Native project missing: %s" % target.native_project_path,
 					"Switch the target to \"Regenerate native project\" once to create it.",
-					Level.WARNING
+					Level.WARNING,
+					_native_project_docs(target)
 				))
 				continue
 
-		results.append(_entry(target.display_label(), error.is_empty(), detail, hint))
+		results.append(_entry(
+			target.display_label(), error.is_empty(), detail, hint,
+			Level.ERROR, _target_docs(target)
+		))
 
 	return results
 
 
+static func _platform_export_docs(platform: String) -> String:
+	if platform == AppReleaseStrings.platform_ios:
+		return AppReleaseStrings.docs_godot_export_ios
+	if platform == AppReleaseStrings.platform_android:
+		return AppReleaseStrings.docs_godot_export_android
+	return AppReleaseStrings.docs_godot_export
+
+
+static func _target_docs(target: AppReleaseTarget) -> String:
+	match target.store:
+		AppReleaseTarget.Store.TESTFLIGHT:
+			return AppReleaseStrings.docs_fastlane_ios
+		AppReleaseTarget.Store.APP_STORE:
+			return AppReleaseStrings.docs_app_store_connect_api
+		AppReleaseTarget.Store.FIREBASE:
+			return AppReleaseStrings.docs_firebase_fastlane
+		AppReleaseTarget.Store.PLAY:
+			return AppReleaseStrings.docs_play_service_account
+	return _platform_export_docs(target.platform)
+
+
+static func _native_project_docs(target: AppReleaseTarget) -> String:
+	if target.is_android():
+		return AppReleaseStrings.docs_godot_gradle_build
+	return AppReleaseStrings.docs_godot_export_ios
+
+
 static func _entry(
-	name: String, ok: bool, detail: String, hint: String, fail_level: Level = Level.ERROR
+	name: String,
+	ok: bool,
+	detail: String,
+	hint: String,
+	fail_level: Level = Level.ERROR,
+	docs: String = "",
 ) -> Dictionary:
 	return {
 		"name": name,
@@ -218,4 +282,5 @@ static func _entry(
 		"level": Level.OK if ok else fail_level,
 		"detail": detail,
 		"hint": "" if ok else hint,
+		"docs": docs,
 	}

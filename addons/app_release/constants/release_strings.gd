@@ -173,6 +173,46 @@ const error_empty_stderr: StringName = "(stderr empty)"
 const log_stopped_by_user: StringName = "\n--- Stopped by user ---\n"
 const log_fetch_failed_format: StringName = "\n--- Fetch %s failed ---\n%s\n"
 
+# --- documentation ---------------------------------------------------------------
+const docs_ruby: StringName = "https://www.ruby-lang.org/en/documentation/installation/"
+const docs_bundler: StringName = "https://bundler.io/guides/getting_started.html"
+const docs_fastlane_install: StringName = "https://docs.fastlane.tools/#installing-fastlane"
+const docs_fastlane_ios: StringName = "https://docs.fastlane.tools/getting-started/ios/setup/"
+const docs_fastlane_android: StringName = (
+	"https://docs.fastlane.tools/getting-started/android/setup/"
+)
+const docs_fastlane_keys: StringName = "https://docs.fastlane.tools/best-practices/keys/"
+const docs_app_store_connect_api: StringName = "https://docs.fastlane.tools/app-store-connect-api/"
+const docs_play_service_account: StringName = "https://docs.fastlane.tools/actions/supply/#setup"
+const docs_firebase_credentials: StringName = (
+	"https://firebase.google.com/docs/app-distribution/authenticate-service-account"
+)
+const docs_firebase_fastlane: StringName = (
+	"https://firebase.google.com/docs/app-distribution/android/distribute-fastlane"
+)
+const docs_godot_export: StringName = (
+	"https://docs.godotengine.org/en/stable/tutorials/export/exporting_projects.html"
+)
+const docs_godot_export_android: StringName = (
+	"https://docs.godotengine.org/en/stable/tutorials/export/exporting_for_android.html"
+)
+const docs_godot_export_ios: StringName = (
+	"https://docs.godotengine.org/en/stable/tutorials/export/exporting_for_ios.html"
+)
+const docs_godot_gradle_build: StringName = (
+	"https://docs.godotengine.org/en/stable/tutorials/export/android_gradle_build.html"
+)
+const docs_godot_command_line: StringName = (
+	"https://docs.godotengine.org/en/stable/tutorials/editor/command_line_tutorial.html"
+)
+const docs_godot_version_control: StringName = (
+	"https://docs.godotengine.org/en/stable/tutorials/best_practices/version_control_systems.html"
+)
+const docs_xcode: StringName = "https://developer.apple.com/documentation/xcode"
+
+const label_docs: StringName = "Docs ↗"
+const tooltip_docs_format: StringName = "Click to open this page in your browser:\n%s"
+
 # --- validation ----------------------------------------------------------------
 const version_pattern: StringName = "^[A-Za-z0-9._+-]+$"
 
