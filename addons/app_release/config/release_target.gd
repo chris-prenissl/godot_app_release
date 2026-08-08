@@ -42,7 +42,6 @@ const PLAY_TRACK_HINT: String = "internal,alpha,beta,production"
 const DEFAULT_LANES: PackedStringArray = ["beta", "release", "firebase", "internal"]
 const PRODUCTION_STORES: PackedInt32Array = [Store.APP_STORE, Store.PLAY]
 
-## Name of a preset in `res://export_presets.cfg`. Pick this first.
 @export var export_preset: String = "":
 	set(value):
 		if export_preset == value:
@@ -56,7 +55,10 @@ const PRODUCTION_STORES: PackedInt32Array = [Store.APP_STORE, Store.PLAY]
 @export var platform: String = ""
 
 ## Shown on the column header and the release button. Blank derives one.
-@export var label: String = ""
+@export var label: String = "":
+	set(value):
+		label = value
+		resource_name = value
 
 @export var store: Store = Store.TESTFLIGHT:
 	set(value):
@@ -87,7 +89,7 @@ const PRODUCTION_STORES: PackedInt32Array = [Store.APP_STORE, Store.PLAY]
 @export var supports_tester_groups: bool = true
 @export var enabled: bool = true
 
-@export_group("Native project")
+
 ## `ios/MyGame.xcodeproj` or `android/build`, relative to the project root.
 @export var native_project_path: String = ""
 ## Xcode scheme to archive. iOS only.
@@ -179,8 +181,15 @@ func get_configuration_error() -> String:
 		return "Build mode \"%s\" needs a native project path." % BuildMode.keys()[build_mode]
 	if needs_native_project() and pck_path.is_empty():
 		return "Build mode \"%s\" needs a PCK path." % BuildMode.keys()[build_mode]
-	if is_ios() and build_mode != BuildMode.GODOT_EXPORT and export_options_plist.is_empty():
-		return "xcodebuild needs an export options plist."
+	if is_ios() and needs_native_project():
+		if export_options_plist.is_empty():
+			return "xcodebuild needs an export options plist."
+
+		var plist := ProjectSettings.globalize_path(
+			AppReleaseStrings.resource_path_prefix + export_options_plist
+		)
+		if not FileAccess.file_exists(plist):
+			return "Export options plist not found: %s" % export_options_plist
 	return ""
 
 
@@ -254,10 +263,48 @@ func _sync_from_preset() -> void:
 
 	if artifact_path.is_empty():
 		artifact_path = str(preset["export_path"])
+	_sync_native_paths_from_preset(preset)
 
 	if not STORE_IDS[store] in _allowed_store_ids():
 		store = Store.TESTFLIGHT if is_ios() else Store.FIREBASE
 	_sync_from_store()
+
+
+func _sync_native_paths_from_preset(preset: Dictionary) -> void:
+	var export_path := str(preset["export_path"])
+	if export_path.is_empty():
+		return
+	var base := export_path.get_basename()
+
+	if is_ios():
+		if native_project_path.is_empty():
+			native_project_path = "%s.xcodeproj" % base
+		if xcode_scheme.is_empty():
+			xcode_scheme = base.get_file()
+		if pck_path.is_empty():
+			pck_path = "%s.pck" % base
+		if export_options_plist.is_empty():
+			export_options_plist = base.get_base_dir().path_join("ExportOptions.plist")
+		return
+
+	if not is_android():
+		return
+
+	var options: Dictionary = preset["options"]
+	var gradle_dir := str(options.get("gradle_build/gradle_build_directory", "")).strip_edges()
+	if gradle_dir.is_empty():
+		gradle_dir = "android"
+	gradle_dir = gradle_dir.trim_prefix(AppReleaseStrings.resource_path_prefix)
+
+	if native_project_path.is_empty():
+		native_project_path = gradle_dir.path_join("build")
+	if pck_path.is_empty():
+		pck_path = native_project_path.path_join("assets").path_join("%s.pck" % base.get_file())
+	if gradle_task.is_empty():
+		var builds_aab := (
+			AppReleasePresets.get_android_export_format(preset) == AppReleasePresets.FORMAT_AAB
+		)
+		gradle_task = "bundleRelease" if builds_aab else "assembleRelease"
 
 
 func _sync_from_store() -> void:
