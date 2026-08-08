@@ -61,7 +61,6 @@ static func write_run_env(
 		AppReleaseStrings.env_xcode_scheme: target.xcode_scheme,
 		AppReleaseStrings.env_ios_export_options: target.export_options_plist,
 		AppReleaseStrings.env_pck_path: target.pck_path,
-		AppReleaseStrings.env_gradle_task: target.gradle_task,
 		AppReleaseStrings.env_project_root: root.rstrip("/"),
 		AppReleaseStrings.env_godot_bin: AppReleaseProcess.godot_binary(
 			config.godot_binary_path_override

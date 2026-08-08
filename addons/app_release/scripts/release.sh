@@ -29,10 +29,16 @@ DESCRIPTION
   changes what fastlane reports but NOT what Godot actually exports.
 
 BUILD MODES  (BUILD_MODE in run.env)
-  GODOT_EXPORT               Godot produces the final artifact.
-  REGENERATE_NATIVE_PROJECT  Regenerate the Xcode/Gradle project, then build it.
-  PCK_ONLY                   Refresh only the PCK, then build the existing
-                             native project with xcodebuild or gradlew.
+  GODOT_EXPORT               Godot produces the artifact.
+  REGENERATE_NATIVE_PROJECT  Android: reinstall the build template, then export.
+                             iOS: regenerate the Xcode project, then xcodebuild.
+  PCK_ONLY                   iOS: refresh the PCK, then xcodebuild the existing
+                             hand-maintained Xcode project.
+                             Android: same as GODOT_EXPORT.
+
+  Android needs no build step of its own — an Android export runs Gradle inside
+  Godot and yields the finished APK or AAB. iOS does, because a Godot iOS export
+  writes an .xcodeproj rather than an .ipa.
 
 EXIT STATUS
   0   success
@@ -318,34 +324,22 @@ build_ios_with_xcode() {
   rm -rf "$export_dir"
 }
 
-build_android_with_gradle() {
-  require_var NATIVE_PROJECT_PATH
-  require_var GRADLE_TASK
 
-  local project="$ROOT/$NATIVE_PROJECT_PATH"
-  [ -d "$project" ] || die "Gradle project not found: $project" \
-                           "Install the Android build template from the Godot editor," \
-                           "or run the target once in \"Regenerate native project\" mode."
-  [ -x "$project/gradlew" ] || die "no executable gradlew in $project"
-
-  echo "gradlew $GRADLE_TASK"
-  (cd "$project" && ./gradlew "$GRADLE_TASK")
-
-  local extension="${ARTIFACT_PATH##*.}"
-  local built
-  built="$(find "$project/build/outputs" -name "*.$extension" -type f \
-    -exec ls -t {} + 2>/dev/null | head -n 1 || true)"
-  [ -n "$built" ] || die "gradle produced no .$extension under $project/build/outputs"
-  echo "Gradle output: $built"
-  mkdir -p "$(dirname "$ARTIFACT")"
-  cp "$built" "$ARTIFACT"
-}
-
+# Android never needs a build step of its own: `godot --export-release` on an
+# Android preset with gradle_build enabled reuses the installed build template
+# and runs Gradle itself, producing the finished APK or AAB.
+#
+# iOS does, and cannot avoid it: a Godot iOS export writes an .xcodeproj, not an
+# .ipa, so xcodebuild is what actually produces the artifact.
 export_project() {
   resolve_godot_bin
 
   case "$BUILD_MODE" in
     GODOT_EXPORT)
+      [ "$PLATFORM" != "ios" ] || die \
+        "BUILD_MODE=GODOT_EXPORT cannot work for iOS." \
+        "A Godot iOS export produces an .xcodeproj, a .pck and an Info.plist," \
+        "never an .ipa. Pick a build mode that runs xcodebuild."
       godot_export
       ;;
     REGENERATE_NATIVE_PROJECT)
@@ -359,10 +353,10 @@ export_project() {
       fi
       ;;
     PCK_ONLY)
-      godot_export_pack
       if [ "$PLATFORM" = "android" ]; then
-        build_android_with_gradle
+        godot_export
       else
+        godot_export_pack
         build_ios_with_xcode
       fi
       ;;

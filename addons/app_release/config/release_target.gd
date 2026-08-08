@@ -26,17 +26,8 @@ const STORE_HINT_IOS: String = "TestFlight:0,App Store:1"
 const STORE_HINT_ANDROID: String = "Firebase App Distribution:2,Google Play:3"
 const STORE_HINT_ALL: String = "TestFlight:0,App Store:1,Firebase App Distribution:2,Google Play:3"
 const BUILD_MODE_HINT_IOS: String = (
-	"Godot export (regenerates Xcode project):0,"
-	+"Regenerate Xcode project + xcodebuild:1,"
-	+"Reuse Xcode project - refresh PCK only:2"
-)
-const BUILD_MODE_HINT_ANDROID: String = (
-	"Godot export (Gradle):0,"
-	+"Reinstall build template + Godot export:1,"
-	+"Reuse Gradle project - refresh PCK only:2"
-)
-const BUILD_MODE_HINT_GENERIC: String = (
-	"Godot export:0,Regenerate native project:1,Refresh PCK only:2"
+	"Let Godot regenerate the Xcode project:1,"
+	+"Reuse my Xcode project - refresh the PCK only:2"
 )
 const PLAY_TRACK_HINT: String = "internal,alpha,beta,production"
 const DEFAULT_LANES: PackedStringArray = ["beta", "release", "firebase", "internal"]
@@ -98,8 +89,6 @@ const PRODUCTION_STORES: PackedInt32Array = [Store.APP_STORE, Store.PLAY]
 @export var export_options_plist: String = ""
 ## Where the exported PCK is written, relative to the project root.
 @export var pck_path: String = ""
-## Gradle task to run, e.g. `bundleRelease`. Android only.
-@export var gradle_task: String = ""
 
 
 func store_id() -> String:
@@ -142,7 +131,7 @@ func is_android() -> bool:
 	return platform == AppReleaseStrings.platform_android
 
 func needs_native_project() -> bool:
-	return build_mode != BuildMode.GODOT_EXPORT
+	return is_ios()
 
 
 func get_configuration_error() -> String:
@@ -160,6 +149,8 @@ func get_configuration_error() -> String:
 		return "Preset \"%s\" has no export_path and no artifact path is set." % export_preset
 	if store == Store.PLAY and play_track.is_empty():
 		return "Google Play targets need a track."
+	if is_ios() and build_mode == BuildMode.GODOT_EXPORT:
+		return "A Godot iOS export produces an Xcode project, not an .ipa — pick a build mode."
 	if needs_native_project() and native_project_path.is_empty():
 		return "Build mode \"%s\" needs a native project path." % BuildMode.keys()[build_mode]
 	if needs_native_project() and pck_path.is_empty():
@@ -190,7 +181,8 @@ func _validate_property(property: Dictionary) -> void:
 			property["hint_string"] = _store_hint()
 		&"build_mode":
 			property["hint"] = PROPERTY_HINT_ENUM
-			property["hint_string"] = _build_mode_hint()
+			property["hint_string"] = BUILD_MODE_HINT_IOS
+			_set_visible(property, is_ios())
 		&"play_track":
 			property["hint"] = PROPERTY_HINT_ENUM
 			property["hint_string"] = PLAY_TRACK_HINT
@@ -199,8 +191,6 @@ func _validate_property(property: Dictionary) -> void:
 			_set_visible(property, not store in PRODUCTION_STORES)
 		&"xcode_scheme", &"export_options_plist":
 			_set_visible(property, is_ios() and needs_native_project())
-		&"gradle_task":
-			_set_visible(property, is_android() and needs_native_project())
 		&"native_project_path", &"pck_path":
 			_set_visible(property, needs_native_project())
 
@@ -219,14 +209,6 @@ func _store_hint() -> String:
 	if is_android():
 		return STORE_HINT_ANDROID
 	return STORE_HINT_ALL
-
-
-func _build_mode_hint() -> String:
-	if is_ios():
-		return BUILD_MODE_HINT_IOS
-	if is_android():
-		return BUILD_MODE_HINT_ANDROID
-	return BUILD_MODE_HINT_GENERIC
 
 
 func _allowed_store_ids() -> PackedStringArray:
@@ -250,44 +232,31 @@ func _sync_from_preset() -> void:
 
 	if not STORE_IDS[store] in _allowed_store_ids():
 		store = Store.TESTFLIGHT if is_ios() else Store.FIREBASE
+
+	if is_android():
+		build_mode = BuildMode.GODOT_EXPORT
+	elif is_ios() and build_mode == BuildMode.GODOT_EXPORT:
+		build_mode = BuildMode.REGENERATE_NATIVE_PROJECT
+
 	_sync_from_store()
 
 
 func _sync_native_paths_from_preset(preset: Dictionary) -> void:
+	if not is_ios():
+		return
 	var export_path := str(preset["export_path"])
 	if export_path.is_empty():
 		return
+
 	var base := export_path.get_basename()
-
-	if is_ios():
-		if native_project_path.is_empty():
-			native_project_path = "%s.xcodeproj" % base
-		if xcode_scheme.is_empty():
-			xcode_scheme = base.get_file()
-		if pck_path.is_empty():
-			pck_path = "%s.pck" % base
-		if export_options_plist.is_empty():
-			export_options_plist = base.get_base_dir().path_join("ExportOptions.plist")
-		return
-
-	if not is_android():
-		return
-
-	var options: Dictionary = preset["options"]
-	var gradle_dir := str(options.get("gradle_build/gradle_build_directory", "")).strip_edges()
-	if gradle_dir.is_empty():
-		gradle_dir = "android"
-	gradle_dir = gradle_dir.trim_prefix(AppReleaseStrings.resource_path_prefix)
-
 	if native_project_path.is_empty():
-		native_project_path = gradle_dir.path_join("build")
+		native_project_path = "%s.xcodeproj" % base
+	if xcode_scheme.is_empty():
+		xcode_scheme = base.get_file()
 	if pck_path.is_empty():
-		pck_path = native_project_path.path_join("assets").path_join("%s.pck" % base.get_file())
-	if gradle_task.is_empty():
-		var builds_aab := (
-			AppReleasePresets.get_android_export_format(preset) == AppReleasePresets.FORMAT_AAB
-		)
-		gradle_task = "bundleRelease" if builds_aab else "assembleRelease"
+		pck_path = "%s.pck" % base
+	if export_options_plist.is_empty():
+		export_options_plist = base.get_base_dir().path_join("ExportOptions.plist")
 
 
 func _sync_from_store() -> void:

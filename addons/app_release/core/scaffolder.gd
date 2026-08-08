@@ -179,5 +179,8 @@ static func _make_target(
 	target.store = store
 	target.fastlane_lane = track if not track.is_empty() else AppReleaseTarget.DEFAULT_LANES[store]
 	target.play_track = track
-	target.build_mode = AppReleaseTarget.BuildMode.GODOT_EXPORT
+	if target.is_ios():
+		target.build_mode = AppReleaseTarget.BuildMode.REGENERATE_NATIVE_PROJECT
+	else:
+		target.build_mode = AppReleaseTarget.BuildMode.GODOT_EXPORT
 	return target

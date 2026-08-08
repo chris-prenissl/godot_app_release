@@ -43,10 +43,11 @@ DESCRIPTION
   iOS targets are refused here. Run those from a Mac with Xcode installed.
 
 BUILD MODES  (BUILD_MODE in run.env)
-  GODOT_EXPORT               Godot produces the final artifact.
+  GODOT_EXPORT               Godot produces the finished APK or AAB.
   REGENERATE_NATIVE_PROJECT  Reinstall the Android build template, then export.
-  PCK_ONLY                   Refresh only the PCK, then build the existing
-                             Gradle project with gradlew.
+  PCK_ONLY                   Same as GODOT_EXPORT here. An Android export already
+                             runs Gradle inside Godot against the installed build
+                             template, so there is nothing extra to reuse.
 
 EXIT STATUS
   0   success
@@ -184,45 +185,15 @@ try {
     New-Item -ItemType Directory -Force -Path (Split-Path -Parent $artifact) | Out-Null
     $exportFlag = if ($debugBuild) { "--export-debug" } else { "--export-release" }
 
-    switch ($buildMode) {
-        "REGENERATE_NATIVE_PROJECT" {
-            Write-Log "Reinstalling the Android build template"
-            & $godot --headless --path $root --install-android-build-template 2>&1 | ForEach-Object { Write-Log $_ }
-            if ($LASTEXITCODE -ne 0) { Stop-WithError "installing the Android build template failed ($LASTEXITCODE)" }
-        }
-        "PCK_ONLY" {
-            $pck = Join-Path $root (Get-Required $env_ "PCK_PATH")
-            $nativeProject = Join-Path $root (Get-Required $env_ "NATIVE_PROJECT_PATH")
-            $gradleTask = Get-Required $env_ "GRADLE_TASK"
-
-            Write-Log "Exporting pack only -> $($env_['PCK_PATH'])"
-            New-Item -ItemType Directory -Force -Path (Split-Path -Parent $pck) | Out-Null
-            & $godot --headless --path $root --export-pack $preset $pck 2>&1 | ForEach-Object { Write-Log $_ }
-            if ($LASTEXITCODE -ne 0) { Stop-WithError "the Godot pack export failed ($LASTEXITCODE)" }
-
-            if (-not (Test-Path -LiteralPath (Join-Path $nativeProject "gradlew.bat"))) {
-                Stop-WithError "no gradlew.bat in $nativeProject. Install the Android build template from the Godot editor."
-            }
-            Write-Log "gradlew $gradleTask"
-            Push-Location $nativeProject
-            try {
-                & ".\gradlew.bat" $gradleTask 2>&1 | ForEach-Object { Write-Log $_ }
-                if ($LASTEXITCODE -ne 0) { Stop-WithError "gradle failed ($LASTEXITCODE)" }
-            } finally { Pop-Location }
-
-            $extension = [System.IO.Path]::GetExtension($artifactRel)
-            $built = Get-ChildItem -Path (Join-Path $nativeProject "build\outputs") -Filter "*$extension" -Recurse -File |
-                Sort-Object LastWriteTime -Descending | Select-Object -First 1
-            if (-not $built) { Stop-WithError "gradle produced no *$extension under $nativeProject\build\outputs" }
-            Write-Log "Gradle output: $($built.FullName)"
-            Copy-Item -LiteralPath $built.FullName -Destination $artifact -Force
-        }
+    if ($buildMode -eq "REGENERATE_NATIVE_PROJECT") {
+        Write-Log "Reinstalling the Android build template"
+        & $godot --headless --path $root --install-android-build-template 2>&1 | ForEach-Object { Write-Log $_ }
+        if ($LASTEXITCODE -ne 0) { Stop-WithError "installing the Android build template failed ($LASTEXITCODE)" }
     }
 
-    if ($buildMode -ne "PCK_ONLY") {
-        Write-Log "Exporting preset `"$preset`" ($exportFlag) -> $artifactRel"
-        & $godot --headless --path $root $exportFlag $preset $artifact 2>&1 | ForEach-Object { Write-Log $_ }
-        if ($LASTEXITCODE -ne 0) { Stop-WithError "the Godot export failed ($LASTEXITCODE)" }
+    Write-Log "Exporting preset `"$preset`" ($exportFlag) -> $artifactRel"
+    & $godot --headless --path $root $exportFlag $preset $artifact 2>&1 | ForEach-Object { Write-Log $_ }
+    if ($LASTEXITCODE -ne 0) { Stop-WithError "the Godot export failed ($LASTEXITCODE)" }
     }
 
     if (-not (Test-Path -LiteralPath $artifact)) {

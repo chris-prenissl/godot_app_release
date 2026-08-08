@@ -51,6 +51,15 @@ func _build_ui() -> void:
 	_scripts_button.pressed.connect(_on_scaffold_pressed)
 	actions.add_child(_scripts_button)
 
+	var android_template_button := Button.new()
+	android_template_button.text = "Install Android build template"
+	android_template_button.tooltip_text = (
+		"Run Godot's Install Android Build Template for this project. Required "
+		+ "before any Android export, and again after upgrading Godot."
+	)
+	android_template_button.pressed.connect(_on_android_template_pressed)
+	actions.add_child(android_template_button)
+
 	var gitignore_button := Button.new()
 	gitignore_button.text = "Update .gitignore"
 	gitignore_button.tooltip_text = "Keep credentials, logs and build artifacts out of git."
@@ -255,6 +264,23 @@ func _on_install_poll() -> void:
 	else:
 		_set_message(
 			_scaffold_summary + "bundle install failed — see %s" % _install_log_path, true
+		)
+	refresh()
+
+
+func _on_android_template_pressed() -> void:
+	var config := AppReleaseConfig.load_project_config()
+	var override := config.godot_binary_path_override if config != null else ""
+
+	var result := AppReleaseProcess.install_android_build_template(override)
+	if bool(result["ok"]):
+		EditorInterface.get_resource_filesystem().scan()
+		_set_message("Android build template installed.")
+	else:
+		# Almost always the export templates for this Godot version are missing.
+		var output := str(result["output"])
+		_set_message(
+			"Could not install the Android build template. %s" % output.right(300), true
 		)
 	refresh()
 
