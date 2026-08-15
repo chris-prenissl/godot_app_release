@@ -136,7 +136,7 @@ try {
     $script:LogPath = $LogPath
     Remove-Item -LiteralPath "$LogPath.exit" -ErrorAction SilentlyContinue
 
-    $script:LockDir = Join-Path $logsRoot ".release.lock"
+    $script:LockDir = Join-Path $logsRoot ".release.lock.$targetId"
     if (Test-Path -LiteralPath $script:LockDir) {
         $lockPid = Get-Content -LiteralPath (Join-Path $script:LockDir "pid") -ErrorAction SilentlyContinue
         if ($lockPid -and (Get-Process -Id $lockPid -ErrorAction SilentlyContinue)) {

@@ -1,3 +1,4 @@
+@tool
 extends GutTest
 
 const _FIXTURE_PATH := "res://tests/fixtures/ios_basic/export_presets.cfg"

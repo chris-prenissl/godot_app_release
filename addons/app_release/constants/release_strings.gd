@@ -25,7 +25,7 @@ const export_presets_path: StringName = "res://export_presets.cfg"
 const project_gitignore_path: StringName = "res://.gitignore"
 
 const work_dir_name: StringName = ".release_tools"
-const run_env_file_name: StringName = "run.env"
+const run_env_file_format: StringName = "run_%s.env"
 const run_config_file_name: StringName = "config.json"
 const releases_file_format: StringName = "releases_%s.json"
 const stderr_suffix: StringName = ".err"
@@ -38,6 +38,8 @@ const ci_release_script: StringName = "scripts/ci_release.gd"
 const templates_dir: StringName = "templates"
 
 const log_file_format: StringName = "release_%s_%s.log"
+const log_file_phase_format: StringName = "release_%s_%s_%s.log"
+
 const notes_temp_file_format: StringName = ".release_notes_%s.txt"
 
 # --- platforms and stores ------------------------------------------------------
@@ -61,6 +63,11 @@ const store_labels: Dictionary = {
 	"app_store": "App Store",
 	"firebase": "Firebase App Distribution",
 	"play": "Google Play",
+}
+
+const release_kind_labels: Dictionary = {
+	"test": "Test",
+	"store": "Store",
 }
 
 # --- run.env keys --------------------------------------------------------------
@@ -122,6 +129,17 @@ const tooltip_copy_ci: StringName = (
 )
 const status_ci_copied_format: StringName = "CI command for %s copied to the clipboard."
 const label_release_to_format: StringName = "Release to %s"
+const label_release_selected_format: StringName = "Release selected (%d)"
+const tooltip_select_target: StringName = "Include in a combined release"
+
+const label_save_group: StringName = "Save selection as group…"
+const dialog_save_group_title: StringName = "Save release group"
+const dialog_save_group_ok: StringName = "Save"
+const label_save_group_name: StringName = "Name for this release group:"
+const placeholder_group_name: StringName = "e.g. Beta"
+const tooltip_recall_group_format: StringName = "Check the boxes for: %s"
+const label_delete_group: StringName = "×"
+const tooltip_delete_group: StringName = "Delete this release group"
 const label_idle: StringName = "Idle"
 const label_open_setup: StringName = "Open Setup"
 const tooltip_open_setup: StringName = (
@@ -154,6 +172,8 @@ const dialog_text_format: StringName = "Really execute this release?\n\n%s"
 
 # --- messages ------------------------------------------------------------------
 const status_running_format: StringName = "Running: %s [%s] (pid %d)"
+const status_running_batch_format: StringName = "Releasing %d targets [%s]..."
+const status_nothing_to_release_format: StringName = "Nothing to release — %s"
 const status_success_format: StringName = "Success: %s"
 const status_failed_format: StringName = "FAILED (exit %d): %s"
 const status_stopped_format: StringName = "Stopped: %s"

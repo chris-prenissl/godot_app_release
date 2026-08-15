@@ -24,7 +24,7 @@ EOF
 	ENV_FILE="$PROJECT_DIR/run.env"
 	load_environment
 	[ "$ROOT" = "$PROJECT_DIR" ]
-	[ "$LOCK_DIR" = "$PROJECT_DIR/logs/.release.lock" ]
+	[ "$LOCK_DIR" = "$PROJECT_DIR/logs/.release.lock.testflight_ios" ]
 	[ "$ARTIFACT" = "$PROJECT_DIR/build/ios/App Release.ipa" ]
 }
 
@@ -68,7 +68,20 @@ EOF
 	load_environment
 	[ "$LOGS_DIR" = "custom-logs" ]
 	[ "$KEEP_LOGS" = "5" ]
-	[ "$LOCK_DIR" = "$PROJECT_DIR/custom-logs/.release.lock" ]
+	[ "$LOCK_DIR" = "$PROJECT_DIR/custom-logs/.release.lock.t" ]
+}
+
+@test "load_environment gives two different targets two different lock dirs" {
+	write_minimal_env
+	ENV_FILE="$PROJECT_DIR/minimal.env"
+	load_environment
+	local first_lock_dir="$LOCK_DIR"
+
+	sed -i.bak 's/TARGET_ID="t"/TARGET_ID="other"/' "$PROJECT_DIR/minimal.env"
+	load_environment
+	local second_lock_dir="$LOCK_DIR"
+
+	[ "$first_lock_dir" != "$second_lock_dir" ]
 }
 
 @test "load_environment overrides PATH when EXTRA_PATH is set" {

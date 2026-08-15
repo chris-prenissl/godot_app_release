@@ -140,12 +140,12 @@ func _run(config: AppReleaseConfig, options: Dictionary) -> int:
 	print("Preset:     %s [%s]" % [target.export_preset, target.platform])
 	print("Build mode: %s" % AppReleaseTarget.BuildMode.keys()[target.build_mode])
 	print("Version:    %s (build %d)" % [version, build])
-	print("Wrote:      %s" % AppReleaseRunContext.run_env_path())
+	print("Wrote:      %s" % AppReleaseRunContext.run_env_path(target.target_id()))
 	print("")
 	print("Next: bash %s/%s %s" % [
 		_addon_project_path(),
 		AppReleaseStrings.release_script_posix,
-		_project_relative(AppReleaseRunContext.run_env_path()),
+		_project_relative(AppReleaseRunContext.run_env_path(target.target_id())),
 	])
 	return _EXIT_OK
 

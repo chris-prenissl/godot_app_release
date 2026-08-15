@@ -18,23 +18,26 @@ var _notes_hint: Label
 var _debug_check: CheckBox
 var _status_label: Label
 var _open_setup_button: Button
+var _release_selected_button: Button
 var _stop_button: Button
 var _log_view: TextEdit
 var _columns_box: VBoxContainer
 var _release_tab: PanelContainer
 var _setup_panel: _SetupPanel
 
+var _groups_row: HBoxContainer
+var _save_group_button: Button
+var _save_group_dialog: AcceptDialog
+var _save_group_name_edit: LineEdit
+
 var _columns: Dictionary = {}
 
 var _poll_timer: Timer
 var _fetch_timer: Timer
 var _confirm_dialog: ConfirmationDialog
-
-var _pid := -1
-var _log_path := ""
-var _log_read_len := 0
-var _running_target_id := ""
-var _exit_wait_ticks := 0
+var _runs: Dictionary = {}
+var _batch_targets: Dictionary = {}
+var _batch_export_queue: Dictionary = {}
 
 var _fetch_pid := -1
 var _fetch_store := ""
@@ -42,7 +45,9 @@ var _fetch_out_path := ""
 var _fetch_queue: PackedStringArray = []
 var _store_rows: Dictionary = {}
 
-var _pending_target_id := ""
+var _pending_target_ids: PackedStringArray = []
+var _selected_target_ids: Dictionary = {}
+
 var _fetched_once := false
 var _config_modified_time := 0
 var _setup_tab_index := 0
@@ -124,6 +129,33 @@ func _build_ui() -> void:
 	_open_setup_button.visible = false
 	_open_setup_button.pressed.connect(_show_setup_tab)
 	status_row.add_child(_open_setup_button)
+
+	_release_selected_button = Button.new()
+	_release_selected_button.text = AppReleaseStrings.label_release_selected_format % 0
+	_release_selected_button.disabled = true
+	_release_selected_button.pressed.connect(_on_release_selected_pressed)
+	status_row.add_child(_release_selected_button)
+
+	_groups_row = HBoxContainer.new()
+	root.add_child(_groups_row)
+
+	_save_group_button = Button.new()
+	_save_group_button.text = AppReleaseStrings.label_save_group
+	_save_group_button.disabled = true
+	_save_group_button.pressed.connect(_on_save_group_pressed)
+	_groups_row.add_child(_save_group_button)
+
+	_save_group_dialog = AcceptDialog.new()
+	_save_group_dialog.title = AppReleaseStrings.dialog_save_group_title
+	_save_group_dialog.ok_button_text = AppReleaseStrings.dialog_save_group_ok
+	var save_group_box := VBoxContainer.new()
+	save_group_box.add_child(_label(AppReleaseStrings.label_save_group_name))
+	_save_group_name_edit = LineEdit.new()
+	_save_group_name_edit.placeholder_text = AppReleaseStrings.placeholder_group_name
+	save_group_box.add_child(_save_group_name_edit)
+	_save_group_dialog.add_child(save_group_box)
+	_save_group_dialog.confirmed.connect(_on_save_group_confirmed)
+	add_child(_save_group_dialog, false, Node.INTERNAL_MODE_BACK)
 
 	var split := VSplitContainer.new()
 	split.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -249,6 +281,7 @@ func _reload_config() -> void:
 	_config_modified_time = _current_config_modified_time()
 	_config = AppReleaseConfig.load_project_config()
 	_rebuild_columns()
+	_rebuild_group_chips()
 	_restore_form_state()
 	_setup_panel.refresh()
 
@@ -269,6 +302,7 @@ func _rebuild_columns() -> void:
 		_columns_box.remove_child(child)
 		child.queue_free()
 	_columns.clear()
+	_selected_target_ids.clear()
 
 	if _config == null:
 		return
@@ -277,12 +311,18 @@ func _rebuild_columns() -> void:
 		_columns_box.add_child(_label(AppReleaseStrings.error_no_targets))
 		return
 
+	targets.sort_custom(
+		func(a: AppReleaseTarget, b: AppReleaseTarget) -> bool:
+			return a.release_kind_id() < b.release_kind_id()
+	)
+
 	var built: Array[Control] = []
 	for target in targets:
 		var column := _TargetColumn.new()
 		column.setup(target)
 		column.fetch_requested.connect(_on_fetch_store_requested)
 		column.release_requested.connect(_on_release_pressed)
+		column.selection_toggled.connect(_on_selection_toggled)
 		column.ci_command_copied.connect(_on_ci_command_copied)
 		_columns[target.target_id()] = column
 		built.append(column)
@@ -307,6 +347,80 @@ func _rebuild_columns() -> void:
 		_fill_store_columns(store_id, _store_rows[store_id])
 
 	_update_buttons()
+
+func _rebuild_group_chips() -> void:
+	for child in _groups_row.get_children():
+		if child == _save_group_button:
+			continue
+		_groups_row.remove_child(child)
+		child.queue_free()
+
+	if _config == null:
+		return
+	for group: AppReleaseGroup in _config.release_groups:
+		var chip := HBoxContainer.new()
+
+		var recall_button := Button.new()
+		recall_button.text = group.name
+		var member_labels := PackedStringArray(_config.resolve_group_targets(group).map(
+			func(target: AppReleaseTarget) -> String: return target.display_label()
+		))
+		recall_button.tooltip_text = (
+			AppReleaseStrings.tooltip_recall_group_format % ", ".join(member_labels)
+		)
+		recall_button.pressed.connect(_on_recall_group_pressed.bind(group))
+		chip.add_child(recall_button)
+
+		var delete_button := Button.new()
+		delete_button.text = AppReleaseStrings.label_delete_group
+		delete_button.tooltip_text = AppReleaseStrings.tooltip_delete_group
+		delete_button.pressed.connect(_on_delete_group_pressed.bind(group))
+		chip.add_child(delete_button)
+
+		_groups_row.add_child(chip)
+
+
+func _on_recall_group_pressed(group: AppReleaseGroup) -> void:
+	if _config == null:
+		return
+	_selected_target_ids.clear()
+	for target in _config.resolve_group_targets(group):
+		_selected_target_ids[target.target_id()] = true
+	for target_id in _columns:
+		var column: _TargetColumn = _columns[target_id]
+		column.set_selected(_selected_target_ids.has(target_id))
+	_update_release_selected_button()
+
+
+func _on_delete_group_pressed(group: AppReleaseGroup) -> void:
+	if _config == null:
+		return
+	_config.release_groups.erase(group)
+	_config.save_to_disk()
+	_rebuild_group_chips()
+
+
+func _on_save_group_pressed() -> void:
+	if _selected_target_ids.is_empty():
+		return
+	_save_group_name_edit.text = ""
+	_save_group_dialog.popup_centered()
+	_save_group_name_edit.grab_focus()
+
+
+func _on_save_group_confirmed() -> void:
+	if _config == null or _selected_target_ids.is_empty():
+		return
+	var group_name := _save_group_name_edit.text.strip_edges()
+	if group_name.is_empty():
+		return
+
+	var group := AppReleaseGroup.new()
+	group.name = group_name
+	group.target_ids = PackedStringArray(_selected_target_ids.keys())
+	_config.release_groups.append(group)
+	_config.save_to_disk()
+	_rebuild_group_chips()
 
 
 func _restore_form_state() -> void:
@@ -367,12 +481,17 @@ func _ci_command_for(target: AppReleaseTarget) -> String:
 	if _debug_check.button_pressed and target.allow_debug_build:
 		arguments.append("--debug")
 
-	return "godot --headless --path . --script %s/%s -- %s && bash %s/%s .release_tools/run.env" % [
+	var run_env_relative_path := "%s/%s" % [
+		AppReleaseStrings.work_dir_name,
+		AppReleaseStrings.run_env_file_format % target.target_id(),
+	]
+	return "godot --headless --path . --script %s/%s -- %s && bash %s/%s %s" % [
 		addon_dir,
 		AppReleaseStrings.ci_release_script,
 		" ".join(arguments),
 		addon_dir,
 		AppReleaseStrings.release_script_posix,
+		run_env_relative_path,
 	]
 
 
@@ -381,20 +500,83 @@ func _on_ci_command_copied(target_label: String) -> void:
 
 
 func _on_release_pressed(target_id: String) -> void:
-	if _pid > 0 or _config == null:
-		return
-	var target := _config.find_target(target_id)
-	if target == null:
+	_request_release(PackedStringArray([target_id]))
+
+
+func _on_selection_toggled(target_id: String, selected: bool) -> void:
+	if selected:
+		_selected_target_ids[target_id] = true
+	else:
+		_selected_target_ids.erase(target_id)
+	_update_release_selected_button()
+
+
+func _on_release_selected_pressed() -> void:
+	_request_release(PackedStringArray(_selected_target_ids.keys()))
+
+
+func _update_release_selected_button() -> void:
+	_release_selected_button.text = (
+		AppReleaseStrings.label_release_selected_format % _selected_target_ids.size()
+	)
+	_release_selected_button.disabled = _selected_target_ids.is_empty() or not _runs.is_empty()
+	_save_group_button.disabled = _selected_target_ids.is_empty() or not _runs.is_empty()
+
+func _request_release(target_ids: PackedStringArray) -> void:
+	if target_ids.is_empty() or not _runs.is_empty() or _config == null:
 		return
 
-	var error := target.get_configuration_error()
-	if error.is_empty():
-		error = _config.identity_error(target.platform)
-	if not error.is_empty():
-		_status_label.text = "%s: %s" % [target.display_label(), error]
+	var runnable: Array[AppReleaseTarget] = []
+	var skipped: Array[Dictionary] = []
+	var ios_supported := AppReleaseProcess.is_macos()
+
+	for target_id in target_ids:
+		var target := _config.find_target(target_id)
+		if target == null:
+			continue
+		var error := target.get_configuration_error()
+		if error.is_empty():
+			error = _config.identity_error(target.platform)
+		if error.is_empty() and target.is_ios() and not ios_supported:
+			error = AppReleaseStrings.tooltip_ios_needs_macos
+		if error.is_empty():
+			runnable.append(target)
+		else:
+			skipped.append({"target": target, "reason": error})
+
+	if runnable.is_empty():
+		var reasons: PackedStringArray = []
+		for entry in skipped:
+			reasons.append("%s: %s" % [entry["target"].display_label(), entry["reason"]])
+		_status_label.text = (
+			reasons[0] if reasons.size() == 1
+			else AppReleaseStrings.status_nothing_to_release_format % "; ".join(reasons)
+		)
 		return
 
-	_pending_target_id = target_id
+	_pending_target_ids = PackedStringArray(
+		runnable.map(func(target: AppReleaseTarget) -> String: return target.target_id())
+	)
+	_confirm_dialog.dialog_text = _release_confirm_text(runnable, skipped)
+	_confirm_dialog.popup_centered()
+
+
+func _release_confirm_text(runnable: Array[AppReleaseTarget], skipped: Array[Dictionary]) -> String:
+	var blocks: PackedStringArray = []
+	for target in runnable:
+		blocks.append("\n".join(_target_summary_lines(target)))
+	var body := "\n\n".join(blocks)
+
+	if not skipped.is_empty():
+		var skip_lines: PackedStringArray = ["Skipped:"]
+		for entry in skipped:
+			skip_lines.append("  %s — %s" % [entry["target"].display_label(), entry["reason"]])
+		body += "\n\n" + "\n".join(skip_lines)
+
+	return AppReleaseStrings.dialog_text_format % body
+
+
+func _target_summary_lines(target: AppReleaseTarget) -> PackedStringArray:
 	var build_type := "debug" if _debug_check.button_pressed else "release"
 	var lines: PackedStringArray = [
 		"Target:     %s" % target.display_label(),
@@ -410,104 +592,224 @@ func _on_release_pressed(target_id: String) -> void:
 	if not _notes_edit.text.strip_edges().is_empty():
 		lines.append("")
 		lines.append(target.release_notes_destination())
-
-	_confirm_dialog.dialog_text = AppReleaseStrings.dialog_text_format % "\n".join(lines)
-	_confirm_dialog.popup_centered()
+	return lines
 
 
 func _on_release_confirmed() -> void:
-	var target_id := _pending_target_id
-	_pending_target_id = ""
-	if target_id.is_empty() or _pid > 0 or _config == null:
+	var target_ids := _pending_target_ids
+	_pending_target_ids = PackedStringArray()
+	if target_ids.is_empty() or not _runs.is_empty() or _config == null:
 		return
-	var target := _config.find_target(target_id)
-	if target == null:
+
+	var targets: Array[AppReleaseTarget] = []
+	for target_id in target_ids:
+		var target := _config.find_target(target_id)
+		if target != null:
+			targets.append(target)
+	if targets.is_empty():
 		return
 
 	var version := _version_edit.text.strip_edges()
 	var build := int(_build_edit.value)
-	if AppReleaseVersionPatcher.patch(target.export_preset, version, build) != OK:
-		_status_label.text = "Could not patch %s — see the Output panel." % target.export_preset
-		return
-
 	var timestamp := Time.get_datetime_string_from_system().replace(":", "-")
 	var notes_file := AppReleaseRunContext.write_notes_file(_notes_edit.text, timestamp)
+	var groups := _groups_edit.text.strip_edges()
+	var debug_build := _debug_check.button_pressed
 
-	if AppReleaseRunContext.write_run_env(
-		_config, target, version, build, notes_file, _groups_edit.text.strip_edges(),
-		_debug_check.button_pressed
-	) != OK:
-		_status_label.text = AppReleaseStrings.error_start_failed
+	_start_batch(targets, version, build, notes_file, groups, debug_build)
+	if _runs.is_empty():
 		return
+
+	var build_type := "debug" if debug_build else "release"
+	if targets.size() == 1:
+		var run: AppReleaseRun = _runs.values()[0]
+		_status_label.text = AppReleaseStrings.status_running_format % [
+			targets[0].display_label(), build_type, run.pid,
+		]
+	else:
+		_status_label.text = AppReleaseStrings.status_running_batch_format % [
+			targets.size(), build_type,
+		]
+	_update_buttons()
+
+
+func _start_batch(
+	targets: Array[AppReleaseTarget], version: String, build: int,
+	notes_file: String, groups: String, debug_build: bool
+) -> void:
+	if _config == null or targets.is_empty():
+		return
+
+	var patched_presets: PackedStringArray = []
+	for target in targets:
+		if target.export_preset in patched_presets:
+			continue
+		if AppReleaseVersionPatcher.patch(target.export_preset, version, build) != OK:
+			_status_label.text = "Could not patch %s — see the Output panel." % target.export_preset
+			return
+		patched_presets.append(target.export_preset)
+
+	for target in targets:
+		if AppReleaseRunContext.write_run_env(
+			_config, target, version, build, notes_file, groups, debug_build
+		) != OK:
+			_status_label.text = AppReleaseStrings.error_start_failed
+			return
 	AppReleaseRunContext.write_run_config(_config)
 
+	_log_view.text = ""
+
+	if targets.size() == 1:
+		if _spawn_run(targets[0], "", AppReleaseRun.Phase.SINGLE) != null:
+			_update_buttons()
+			_poll_timer.start()
+		return
+
+	var batch_id := Time.get_datetime_string_from_system().replace(":", "-")
+	var ids: PackedStringArray = []
+	for target in targets:
+		ids.append(target.target_id())
+	_batch_targets[batch_id] = ids
+	_batch_export_queue[batch_id] = ids.duplicate()
+
+	_spawn_next_batch_export(batch_id)
+	_update_buttons()
+	_poll_timer.start()
+
+func _spawn_next_batch_export(batch_id: String) -> void:
+	if not _batch_export_queue.has(batch_id):
+		return
+
+	var queue: PackedStringArray = _batch_export_queue[batch_id]
+	if queue.is_empty():
+		_batch_export_queue.erase(batch_id)
+		_start_batch_uploads(batch_id)
+		return
+
+	var target_id: String = queue[0]
+	queue.remove_at(0)
+	_batch_export_queue[batch_id] = queue
+
+	var target := _config.find_target(target_id) if _config != null else null
+	if target == null:
+		_spawn_next_batch_export(batch_id)
+		return
+
+	if _spawn_run(target, batch_id, AppReleaseRun.Phase.EXPORT) == null:
+		_abort_batch(batch_id)
+
+
+func _start_batch_uploads(batch_id: String) -> void:
+	var target_ids: PackedStringArray = _batch_targets.get(batch_id, [])
+	_batch_targets.erase(batch_id)
+	if _config == null:
+		return
+	for target_id in target_ids:
+		var target := _config.find_target(target_id)
+		if target != null:
+			_spawn_run(target, batch_id, AppReleaseRun.Phase.UPLOAD)
+
+
+func _abort_batch(batch_id: String) -> void:
+	var remaining: PackedStringArray = _batch_export_queue.get(batch_id, [])
+	_batch_export_queue.erase(batch_id)
+	_batch_targets.erase(batch_id)
+	if not remaining.is_empty():
+		_append_log("Release group stopped: %d target(s) not started.\n" % remaining.size())
+
+func _spawn_run(
+	target: AppReleaseTarget, batch_id: String, phase: AppReleaseRun.Phase
+) -> AppReleaseRun:
+	var timestamp := Time.get_datetime_string_from_system().replace(":", "-")
+	var run := AppReleaseRun.new()
+	run.target_id = target.target_id()
+	run.batch_id = batch_id
+	run.phase = phase
+	run.log_path = _log_path_for(target, phase, timestamp)
+	DirAccess.remove_absolute(run.log_path + AppReleaseStrings.exit_code_suffix)
+
+	var arguments: PackedStringArray = [
+		AppReleaseRunContext.run_env_path(target.target_id()), run.log_path,
+	]
+	if phase == AppReleaseRun.Phase.EXPORT:
+		arguments.append("export")
+	elif phase == AppReleaseRun.Phase.UPLOAD:
+		arguments.append("upload")
+
+	var command := AppReleaseProcess.release_command(arguments)
+	run.pid = OS.create_process(str(command["executable"]), command["arguments"])
+	if run.pid <= 0:
+		_status_label.text = AppReleaseStrings.error_start_failed
+		push_error("App Release: could not start %s." % command["executable"])
+		return null
+
+	_runs[run.target_id] = run
+	return run
+
+
+func _log_path_for(target: AppReleaseTarget, phase: AppReleaseRun.Phase, timestamp: String) -> String:
 	var logs_root := ProjectSettings.globalize_path(
 		AppReleaseStrings.resource_path_prefix
 	).path_join(_config.logs_dir)
 	DirAccess.make_dir_recursive_absolute(logs_root)
-	_log_path = logs_root.path_join(
-		AppReleaseStrings.log_file_format % [target.target_id(), timestamp]
+	if phase == AppReleaseRun.Phase.SINGLE:
+		return logs_root.path_join(
+			AppReleaseStrings.log_file_format % [target.target_id(), timestamp]
+		)
+	var phase_name := "export" if phase == AppReleaseRun.Phase.EXPORT else "upload"
+	return logs_root.path_join(
+		AppReleaseStrings.log_file_phase_format % [target.target_id(), phase_name, timestamp]
 	)
-	DirAccess.remove_absolute(_log_path + AppReleaseStrings.exit_code_suffix)
-
-	var command := AppReleaseProcess.release_command([
-		AppReleaseRunContext.run_env_path(), _log_path,
-	])
-	_pid = OS.create_process(str(command["executable"]), command["arguments"])
-	if _pid <= 0:
-		_status_label.text = AppReleaseStrings.error_start_failed
-		push_error("App Release: could not start %s." % command["executable"])
-		return
-
-	_running_target_id = target_id
-	_log_read_len = 0
-	_exit_wait_ticks = 0
-	_log_view.text = ""
-	var build_type := "debug" if _debug_check.button_pressed else "release"
-	_status_label.text = AppReleaseStrings.status_running_format % [
-		target.display_label(), build_type, _pid,
-	]
-	_update_buttons()
-	_poll_timer.start()
 
 
 func _on_stop_pressed() -> void:
-	if _pid <= 0:
-		return
-	AppReleaseProcess.kill_process_tree(_pid)
-	_read_new_log_output()
-	_append_log(AppReleaseStrings.log_stopped_by_user)
-	_finish(AppReleaseStrings.status_stopped_format % _running_label())
+	for run: AppReleaseRun in _runs.values().duplicate():
+		AppReleaseProcess.kill_process_tree(run.pid)
+		_read_new_log_output(run)
+		_append_log(AppReleaseStrings.log_stopped_by_user, _log_label_for(run))
+		_finish_run(run, AppReleaseStrings.status_stopped_format % _running_label(run), false)
+	_poll_timer.stop()
 
 
 func _on_poll() -> void:
-	_read_new_log_output()
-	if _pid <= 0 or OS.is_process_running(_pid):
+	for run: AppReleaseRun in _runs.values().duplicate():
+		_poll_run(run)
+	if _runs.is_empty():
+		_poll_timer.stop()
+
+
+func _poll_run(run: AppReleaseRun) -> void:
+	_read_new_log_output(run)
+	if run.pid <= 0 or OS.is_process_running(run.pid):
 		return
 
-	var exit_code: Variant = _read_exit_code()
+	var exit_code: Variant = _read_exit_code(run)
 	if exit_code == null:
-		_exit_wait_ticks += 1
-		if _exit_wait_ticks < _EXIT_FILE_GRACE_TICKS:
+		run.exit_wait_ticks += 1
+		if run.exit_wait_ticks < _EXIT_FILE_GRACE_TICKS:
 			return
 
-	_read_new_log_output()
+	_read_new_log_output(run)
 	if exit_code == null:
-		_finish("%s — the release script exited without a status." % _running_label())
-		push_error("App Release: no exit status from the release script, see %s" % _log_path)
+		_finish_run(
+			run, "%s — the release script exited without a status." % _running_label(run), false
+		)
+		push_error("App Release: no exit status from the release script, see %s" % run.log_path)
 		return
 	if int(exit_code) == 0:
-		_finish(AppReleaseStrings.status_success_format % _running_label())
+		_finish_run(run, AppReleaseStrings.status_success_format % _running_label(run), true)
 		return
-	_finish(AppReleaseStrings.status_failed_format % [int(exit_code), _running_label()])
-	push_error("App Release: release failed, see log: %s" % _log_path)
+	_finish_run(
+		run, AppReleaseStrings.status_failed_format % [int(exit_code), _running_label(run)], false
+	)
+	push_error("App Release: release failed, see log: %s" % run.log_path)
 
 
-func _read_exit_code() -> Variant:
-	if _log_path.is_empty():
+func _read_exit_code(run: AppReleaseRun) -> Variant:
+	if run.log_path.is_empty():
 		return null
 
-	var path := _log_path + AppReleaseStrings.exit_code_suffix
+	var path := run.log_path + AppReleaseStrings.exit_code_suffix
 	if not FileAccess.file_exists(path):
 		return null
 	var file := FileAccess.open(path, FileAccess.READ)
@@ -520,39 +822,49 @@ func _read_exit_code() -> Variant:
 	return int(text)
 
 
-func _finish(status: String) -> void:
-	_poll_timer.stop()
-	_pid = -1
-	_running_target_id = ""
+func _finish_run(run: AppReleaseRun, status: String, succeeded: bool) -> void:
+	_runs.erase(run.target_id)
 	_status_label.text = status
 	_update_buttons()
 
-
-func _running_label() -> String:
-	if _config == null:
-		return _running_target_id
-	var target := _config.find_target(_running_target_id)
-	return target.display_label() if target != null else _running_target_id
-
-
-func _read_new_log_output() -> void:
-	if _log_path.is_empty() or not FileAccess.file_exists(_log_path):
+	if run.phase != AppReleaseRun.Phase.EXPORT:
 		return
-	var file := FileAccess.open(_log_path, FileAccess.READ)
+	if succeeded:
+		_spawn_next_batch_export(run.batch_id)
+	else:
+		_abort_batch(run.batch_id)
+
+
+func _running_label(run: AppReleaseRun) -> String:
+	if _config == null:
+		return run.target_id
+	var target := _config.find_target(run.target_id)
+	return target.display_label() if target != null else run.target_id
+
+func _log_label_for(run: AppReleaseRun) -> String:
+	return _running_label(run) if _runs.size() > 1 else ""
+
+
+func _read_new_log_output(run: AppReleaseRun) -> void:
+	if run.log_path.is_empty() or not FileAccess.file_exists(run.log_path):
+		return
+	var file := FileAccess.open(run.log_path, FileAccess.READ)
 	if file == null:
 		return
 	var length := file.get_length()
-	if length <= _log_read_len:
+	if length <= run.log_read_len:
 		file.close()
 		return
-	file.seek(_log_read_len)
-	var new_text := file.get_buffer(length - _log_read_len).get_string_from_utf8()
+	file.seek(run.log_read_len)
+	var new_text := file.get_buffer(length - run.log_read_len).get_string_from_utf8()
 	file.close()
-	_log_read_len = length
-	_append_log(new_text)
+	run.log_read_len = length
+	_append_log(new_text, _log_label_for(run))
 
 
-func _append_log(text: String) -> void:
+func _append_log(text: String, label: String = "") -> void:
+	if not label.is_empty():
+		text = "[%s] %s" % [label, text]
 	_log_view.text += text
 	_log_view.scroll_vertical = _log_view.get_line_count()
 
@@ -563,13 +875,14 @@ func _on_debug_toggled(pressed: bool) -> void:
 
 
 func _update_buttons() -> void:
-	var running := _pid > 0
+	var running := not _runs.is_empty()
 	_stop_button.disabled = not running
 	var ios_supported := AppReleaseProcess.is_macos()
 	for target_id in _columns:
 		var column: _TargetColumn = _columns[target_id]
 		column.update_buttons(running, _debug_check.button_pressed, ios_supported)
 
+	_update_release_selected_button()
 	_update_ci_commands()
 
 

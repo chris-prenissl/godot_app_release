@@ -20,7 +20,7 @@ setup() {
 	[[ "$output" == *"RELEASE testflight_ios SUCCEEDED"* ]]
 	[ -f "$PROJECT_DIR/build/ios/App Release.ipa" ]
 	[ "$(cat "$PROJECT_DIR/manual.log.exit")" = "0" ]
-	[ ! -d "$PROJECT_DIR/logs/.release.lock" ]
+	[ ! -d "$PROJECT_DIR/logs/.release.lock.testflight_ios" ]
 	grep -q "bundle exec fastlane ios beta" "$FAKE_BIN_LOG"
 }
 
@@ -31,7 +31,7 @@ setup() {
 	[ "$status" -eq 1 ]
 	[[ "$output" == *"RELEASE testflight_ios FAILED"* ]]
 	[ "$(cat "$PROJECT_DIR/manual.log.exit")" = "1" ]
-	[ ! -d "$PROJECT_DIR/logs/.release.lock" ]
+	[ ! -d "$PROJECT_DIR/logs/.release.lock.testflight_ios" ]
 }
 
 @test "release.sh --help prints usage without running a release" {
@@ -39,4 +39,52 @@ setup() {
 	[ "$status" -eq 0 ]
 	[[ "$output" == *"USAGE"* ]]
 	[ ! -f "$PROJECT_DIR/manual.log.exit" ]
+}
+
+@test "release.sh export phase produces the artifact but never calls fastlane" {
+	run bash "$BATS_TEST_DIRNAME/../../addons/app_release/scripts/release.sh" \
+		"$PROJECT_DIR/run.env" "$PROJECT_DIR/export.log" export
+	[ "$status" -eq 0 ]
+	[ -f "$PROJECT_DIR/build/ios/App Release.ipa" ]
+	! grep -q "fastlane" "$FAKE_BIN_LOG"
+}
+
+@test "release.sh upload phase dies when no artifact exists yet" {
+	run bash "$BATS_TEST_DIRNAME/../../addons/app_release/scripts/release.sh" \
+		"$PROJECT_DIR/run.env" "$PROJECT_DIR/upload.log" upload
+	[ "$status" -eq 1 ]
+	[[ "$output" == *"no artifact at"* ]]
+	! grep -q "fastlane" "$FAKE_BIN_LOG"
+}
+
+@test "release.sh upload phase runs fastlane without re-exporting when the artifact already exists" {
+	mkdir -p "$PROJECT_DIR/build/ios"
+	echo "pre-existing artifact" > "$PROJECT_DIR/build/ios/App Release.ipa"
+
+	run bash "$BATS_TEST_DIRNAME/../../addons/app_release/scripts/release.sh" \
+		"$PROJECT_DIR/run.env" "$PROJECT_DIR/upload.log" upload
+	[ "$status" -eq 0 ]
+	grep -q "bundle exec fastlane ios beta" "$FAKE_BIN_LOG"
+	! grep -q "xcodebuild" "$FAKE_BIN_LOG"
+	! grep -q "^godot " "$FAKE_BIN_LOG"
+	[ "$(cat "$PROJECT_DIR/build/ios/App Release.ipa")" = "pre-existing artifact" ]
+}
+
+@test "release.sh runs a real two-phase export-then-upload release across two separate processes" {
+	run bash "$BATS_TEST_DIRNAME/../../addons/app_release/scripts/release.sh" \
+		"$PROJECT_DIR/run.env" "$PROJECT_DIR/export.log" export
+	[ "$status" -eq 0 ]
+	[ -f "$PROJECT_DIR/build/ios/App Release.ipa" ]
+	! grep -q "fastlane" "$FAKE_BIN_LOG"
+
+	run bash "$BATS_TEST_DIRNAME/../../addons/app_release/scripts/release.sh" \
+		"$PROJECT_DIR/run.env" "$PROJECT_DIR/upload.log" upload
+	[ "$status" -eq 0 ]
+	grep -q "bundle exec fastlane ios beta" "$FAKE_BIN_LOG"
+
+	# exported exactly once across the whole two-phase run — the upload phase
+	# didn't re-export.
+	local godot_invocations
+	godot_invocations=$(grep -c "^godot " "$FAKE_BIN_LOG")
+	[ "$godot_invocations" -eq 1 ]
 }

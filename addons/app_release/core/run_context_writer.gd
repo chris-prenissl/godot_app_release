@@ -22,8 +22,8 @@ static func work_dir() -> String:
 	return path
 
 
-static func run_env_path() -> String:
-	return work_dir().path_join(AppReleaseStrings.run_env_file_name)
+static func run_env_path(target_id: String) -> String:
+	return work_dir().path_join(AppReleaseStrings.run_env_file_format % target_id)
 
 
 static func run_config_path() -> String:
@@ -85,7 +85,7 @@ static func write_run_env(
 		lines.append("%s=\"%s\"" % [key, _escape(str(values[key]))])
 	lines.append("")
 
-	return _write(run_env_path(), "\n".join(lines))
+	return _write(run_env_path(target.target_id()), "\n".join(lines))
 
 
 static func write_run_config(config: AppReleaseConfig) -> Error:

@@ -1,3 +1,4 @@
+@tool
 extends GutTest
 
 const _FIXTURE_PATH := "res://tests/fixtures/ios_basic/export_presets.cfg"
@@ -251,3 +252,66 @@ class TestGetConfigurationError:
 	func test_empty_string_for_fully_valid_android_target() -> void:
 		var target := _make_valid_android_target()
 		assert_eq(target.get_configuration_error(), "")
+
+
+class TestReleaseKindId:
+	extends GutTest
+
+	func test_testflight_is_test_kind() -> void:
+		var target := AppReleaseTarget.new()
+		target.store = AppReleaseTarget.Store.TESTFLIGHT
+		assert_eq(target.release_kind_id(), AppReleaseTarget.RELEASE_KIND_TEST)
+
+	func test_firebase_is_test_kind() -> void:
+		var target := AppReleaseTarget.new()
+		target.store = AppReleaseTarget.Store.FIREBASE
+		assert_eq(target.release_kind_id(), AppReleaseTarget.RELEASE_KIND_TEST)
+
+	func test_app_store_is_store_kind() -> void:
+		var target := AppReleaseTarget.new()
+		target.store = AppReleaseTarget.Store.APP_STORE
+		assert_eq(target.release_kind_id(), AppReleaseTarget.RELEASE_KIND_STORE)
+
+	func test_play_internal_track_is_test_kind() -> void:
+		var target := AppReleaseTarget.new()
+		target.store = AppReleaseTarget.Store.PLAY
+		target.play_track = "internal"
+		assert_eq(target.release_kind_id(), AppReleaseTarget.RELEASE_KIND_TEST)
+
+	func test_play_alpha_track_is_test_kind() -> void:
+		var target := AppReleaseTarget.new()
+		target.store = AppReleaseTarget.Store.PLAY
+		target.play_track = "alpha"
+		assert_eq(target.release_kind_id(), AppReleaseTarget.RELEASE_KIND_TEST)
+
+	func test_play_beta_track_is_test_kind() -> void:
+		var target := AppReleaseTarget.new()
+		target.store = AppReleaseTarget.Store.PLAY
+		target.play_track = "beta"
+		assert_eq(target.release_kind_id(), AppReleaseTarget.RELEASE_KIND_TEST)
+
+	func test_play_production_track_is_store_kind() -> void:
+		var target := AppReleaseTarget.new()
+		target.store = AppReleaseTarget.Store.PLAY
+		target.play_track = "production"
+		assert_eq(target.release_kind_id(), AppReleaseTarget.RELEASE_KIND_STORE)
+
+	func test_play_blank_track_is_test_kind() -> void:
+		var target := AppReleaseTarget.new()
+		target.store = AppReleaseTarget.Store.PLAY
+		target.play_track = ""
+		assert_eq(target.release_kind_id(), AppReleaseTarget.RELEASE_KIND_TEST)
+
+
+class TestReleaseKindLabel:
+	extends GutTest
+
+	func test_returns_label_for_test_kind() -> void:
+		var target := AppReleaseTarget.new()
+		target.store = AppReleaseTarget.Store.TESTFLIGHT
+		assert_eq(target.release_kind_label(), "Test")
+
+	func test_returns_label_for_store_kind() -> void:
+		var target := AppReleaseTarget.new()
+		target.store = AppReleaseTarget.Store.APP_STORE
+		assert_eq(target.release_kind_label(), "Store")

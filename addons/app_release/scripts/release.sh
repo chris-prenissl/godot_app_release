@@ -3,6 +3,7 @@ set -euo pipefail
 
 ENV_FILE=""
 LOG=""
+PHASE="all"
 LOCK_HELD=0
 
 usage() {
@@ -10,13 +11,19 @@ usage() {
 release.sh — export a Godot project and ship the artifact with fastlane.
 
 USAGE
-  release.sh <run.env path> [log path]
+  release.sh <run.env path> [log path] [phase]
   release.sh --help
 
 ARGUMENTS
   <run.env path>   Required. The generated environment file describing one run.
   [log path]       Optional. Where to write the log. Defaults to
                    <project>/<LOGS_DIR>/release_<TARGET_ID>_<timestamp>.log
+  [phase]          Optional: export, upload or all (default). Lets a release of
+                   several targets serialize every target's export (Godot's own
+                   exporter isn't safe to run twice at once against one project)
+                   and then run every target's upload concurrently afterward —
+                   see PHASES below. A plain single-target release never needs
+                   this; omit it and get export+upload in one process, as before.
 
 DESCRIPTION
   Everything this script needs comes from the run.env file, so there are no
@@ -39,6 +46,19 @@ BUILD MODES  (BUILD_MODE in run.env)
   Android needs no build step of its own — an Android export runs Gradle inside
   Godot and yields the finished APK or AAB. iOS does, because a Godot iOS export
   writes an .xcodeproj rather than an .ipa.
+
+PHASES  (the optional [phase] argument)
+  export   Run only the Godot export (and, for iOS, xcodebuild). Skips fastlane.
+  upload   Skip the export; run only fastlane against the artifact ARTIFACT_PATH
+           already points at (from a prior export phase — dies if it's missing).
+  all      Both, in one process. The default — what a single-target release uses.
+
+  The Godot Release panel uses export/upload/all itself to release several
+  targets together: it runs each target's export phase one at a time (a Godot
+  headless export isn't safe to run twice at once against the same project
+  directory, regardless of platform), then, once every target has exported, runs
+  every target's upload phase at the same time — uploads are independent
+  fastlane processes with nothing to collide on.
 
 EXIT STATUS
   0   success
@@ -105,12 +125,18 @@ parse_args() {
   if [ $# -lt 1 ]; then
     die_usage "no run.env given." "$help_hint"
   fi
-  if [ $# -gt 2 ]; then
-    die_usage "expected at most 2 arguments, got $#." "$help_hint"
+  if [ $# -gt 3 ]; then
+    die_usage "expected at most 3 arguments, got $#." "$help_hint"
   fi
 
   ENV_FILE="$1"
   LOG="${2:-}"
+  PHASE="${3:-all}"
+
+  case "$PHASE" in
+    export | upload | all) ;;
+    *) die_usage "unknown phase \"$PHASE\", expected export, upload or all." "$help_hint" ;;
+  esac
 
   if [ ! -f "$ENV_FILE" ]; then
     die_usage "run.env not found: $ENV_FILE"
@@ -137,7 +163,7 @@ load_environment() {
   ROOT="$PROJECT_ROOT"
   LOGS_DIR="${LOGS_DIR:-logs}"
   KEEP_LOGS="${KEEP_LOGS:-20}"
-  LOCK_DIR="$ROOT/$LOGS_DIR/.release.lock"
+  LOCK_DIR="$ROOT/$LOGS_DIR/.release.lock.$TARGET_ID"
   ARTIFACT="$ROOT/$ARTIFACT_PATH"
   DEBUG_BUILD="${DEBUG_BUILD:-0}"
 }
@@ -394,7 +420,7 @@ main() {
   setup_logging
   acquire_lock
 
-  echo "=== RELEASE ${TARGET_ID} STARTED $(date '+%Y-%m-%d %H:%M:%S') ==="
+  echo "=== RELEASE ${TARGET_ID} STARTED $(date '+%Y-%m-%d %H:%M:%S') (phase: $PHASE) ==="
   echo "Project:    $ROOT"
   echo "Target:     ${TARGET_LABEL:-$TARGET_ID} ($STORE)"
   echo "Preset:     $EXPORT_PRESET [$PLATFORM]"
@@ -405,8 +431,15 @@ main() {
   rotate_logs
   resolve_groups
   stage_release_notes
-  export_project
-  run_fastlane
+
+  case "$PHASE" in
+    export) export_project ;;
+    upload)
+      [ -f "$ARTIFACT" ] || die "no artifact at $ARTIFACT — run the export phase first."
+      run_fastlane
+      ;;
+    all) export_project; run_fastlane ;;
+  esac
 }
 
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then

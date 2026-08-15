@@ -32,6 +32,8 @@ const BUILD_MODE_HINT_IOS: String = (
 const PLAY_TRACK_HINT: String = "internal,alpha,beta,production"
 const DEFAULT_LANES: PackedStringArray = ["beta", "release", "firebase", "internal"]
 const PRODUCTION_STORES: PackedInt32Array = [Store.APP_STORE, Store.PLAY]
+const RELEASE_KIND_TEST: StringName = "test"
+const RELEASE_KIND_STORE: StringName = "store"
 
 @export var export_preset: String = "":
 	set(value):
@@ -136,6 +138,22 @@ func is_android() -> bool:
 
 func needs_native_project() -> bool:
 	return is_ios()
+
+
+func release_kind_id() -> String:
+	match store:
+		Store.TESTFLIGHT, Store.FIREBASE:
+			return RELEASE_KIND_TEST
+		Store.APP_STORE:
+			return RELEASE_KIND_STORE
+		Store.PLAY:
+			return RELEASE_KIND_STORE if play_track == "production" else RELEASE_KIND_TEST
+		_:
+			return ""
+
+
+func release_kind_label() -> String:
+	return str(AppReleaseStrings.release_kind_labels.get(release_kind_id(), ""))
 
 
 func get_configuration_error() -> String:

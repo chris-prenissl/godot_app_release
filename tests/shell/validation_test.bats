@@ -40,10 +40,10 @@ setup() {
 	[[ "$output" == *"no run.env given"* ]]
 }
 
-@test "parse_args fails with more than two arguments" {
-	run parse_args a b c
+@test "parse_args fails with more than three arguments" {
+	run parse_args a b c d
 	[ "$status" -eq 2 ]
-	[[ "$output" == *"expected at most 2 arguments"* ]]
+	[[ "$output" == *"expected at most 3 arguments"* ]]
 }
 
 @test "parse_args fails when the run.env path does not exist" {
@@ -64,4 +64,33 @@ setup() {
 	touch "$env_file"
 	parse_args "$env_file" "$BATS_TEST_TMPDIR/custom.log"
 	[ "$LOG" = "$BATS_TEST_TMPDIR/custom.log" ]
+}
+
+@test "parse_args defaults PHASE to all when the third argument is omitted" {
+	local env_file="$BATS_TEST_TMPDIR/run.env"
+	touch "$env_file"
+	parse_args "$env_file"
+	[ "$PHASE" = "all" ]
+}
+
+@test "parse_args accepts export as the third argument" {
+	local env_file="$BATS_TEST_TMPDIR/run.env"
+	touch "$env_file"
+	parse_args "$env_file" "" export
+	[ "$PHASE" = "export" ]
+}
+
+@test "parse_args accepts upload as the third argument" {
+	local env_file="$BATS_TEST_TMPDIR/run.env"
+	touch "$env_file"
+	parse_args "$env_file" "" upload
+	[ "$PHASE" = "upload" ]
+}
+
+@test "parse_args rejects an unknown phase" {
+	local env_file="$BATS_TEST_TMPDIR/run.env"
+	touch "$env_file"
+	run parse_args "$env_file" "" bogus
+	[ "$status" -eq 2 ]
+	[[ "$output" == *"unknown phase \"bogus\""* ]]
 }

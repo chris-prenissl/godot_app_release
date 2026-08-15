@@ -5,6 +5,7 @@ extends Resource
 @export_tool_button("Save to disk", "Save") var save_action: Callable = save_to_disk
 
 @export var targets: Array[AppReleaseTarget] = []
+@export var release_groups: Array[AppReleaseGroup] = []
 
 @export_group("App identity")
 @export var ios_bundle_id: String = ""
@@ -74,6 +75,14 @@ func active_store_ids() -> PackedStringArray:
 		if not id in seen:
 			seen.append(id)
 	return seen
+
+func resolve_group_targets(group: AppReleaseGroup) -> Array[AppReleaseTarget]:
+	var result: Array[AppReleaseTarget] = []
+	for target_id in group.target_ids:
+		var target := find_target(target_id)
+		if target != null and target.enabled:
+			result.append(target)
+	return result
 
 
 func find_target(target_id: String) -> AppReleaseTarget:
