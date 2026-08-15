@@ -286,6 +286,49 @@ of the open-source `firebase-tools` CLI. Those values are published in that proj
 and `FIREBASE_CLI_CLIENT_SECRET`. Configuring `FIREBASE_SERVICE_CREDENTIALS` skips that path
 entirely.
 
+## Running the test suite
+
+This is for people working **on** the plugin itself — none of this ships in
+`addons/app_release/`, and none of it is needed to use the plugin in your own project.
+
+The suite is split by language, matching the three places the plugin's logic actually lives:
+
+| Language | Framework | Lives in |
+|---|---|---|
+| GDScript | [GUT](https://github.com/bitwes/Gut), vendored at `addons/gut/` | `tests/godot/unit/` |
+| Ruby | RSpec | `tests/ruby/spec/` |
+| Shell | [bats-core](https://github.com/bats-core/bats-core) | `tests/shell/` |
+
+Shared test data — an example iOS export preset, a `run.env`, a stub `.xcodeproj`, an
+`ExportOptions.plist` — lives in `tests/fixtures/ios_basic/`, used by all three suites.
+
+**Prerequisites**, once per machine:
+```sh
+brew install bats-core
+```
+GUT is already vendored in the repo (`addons/gut/`, see `addons/gut/VENDORED_VERSION.md`) —
+nothing to install. RSpec's gems install on first run via the command below.
+
+**Run everything:**
+```sh
+tests/run_all.sh
+```
+
+**Run one language at a time:**
+```sh
+# GDScript (GUT) — first run needs an import pass, or GUT's class_names won't resolve:
+godot --headless --path . --import
+godot --headless --path . -s addons/gut/gut_cmdln.gd -gconfig=.gutconfig.json
+
+# Ruby (RSpec)
+cd tests/ruby && bundle install && bundle exec rspec spec
+
+# Shell (bats-core)
+bats tests/shell
+```
+
+There is no CI workflow yet — run `tests/run_all.sh` locally before opening a PR.
+
 ## License
 
 MIT — see [LICENSE](LICENSE).
