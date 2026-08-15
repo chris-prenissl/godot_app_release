@@ -75,6 +75,7 @@ static func write_run_env(
 		AppReleaseStrings.env_build: str(build),
 		AppReleaseStrings.env_release_notes_file: notes_file,
 		AppReleaseStrings.env_release_groups: groups if target.supports_tester_groups else "",
+		AppReleaseStrings.env_ios_skip_build_processing_wait: "1" if target.skip_build_processing_wait else "0",
 	}
 
 	var lines: PackedStringArray = [

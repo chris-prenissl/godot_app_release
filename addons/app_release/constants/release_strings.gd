@@ -93,6 +93,7 @@ const env_version: StringName = "VERSION"
 const env_build: StringName = "BUILD"
 const env_release_notes_file: StringName = "RELEASE_NOTES_FILE"
 const env_release_groups: StringName = "RELEASE_GROUPS"
+const env_ios_skip_build_processing_wait: StringName = "IOS_SKIP_BUILD_PROCESSING_WAIT"
 
 # --- editor settings keys ------------------------------------------------------
 const setting_last_groups: StringName = "app_release/last_groups"

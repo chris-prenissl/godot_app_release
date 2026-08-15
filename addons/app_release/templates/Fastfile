@@ -12,6 +12,7 @@
 #   PLAY_TRACK          Google Play track for the supply lanes
 #   APP_IDENTIFIER / ANDROID_PACKAGE_NAME / APPLE_TEAM_ID
 #   ASC_KEY_ID / ASC_ISSUER_ID / ASC_KEY_PATH        App Store Connect API key
+#   IOS_SKIP_BUILD_PROCESSING_WAIT                   "1" skips waiting for TestFlight processing
 #   FIREBASE_APP_ID_ANDROID / FIREBASE_SERVICE_CREDENTIALS
 #   PLAY_JSON_KEY_PATH                               Google Play service account
 
@@ -39,6 +40,10 @@ def tester_groups
   groups.empty? ? nil : groups
 end
 
+def skip_build_processing_wait?
+  ENV["IOS_SKIP_BUILD_PROCESSING_WAIT"] == "1"
+end
+
 def connect_api_key
   app_store_connect_api_key(
     key_id: ENV.fetch("ASC_KEY_ID"),
@@ -57,7 +62,7 @@ platform :ios do
       changelog: release_notes,
       groups: groups,
       distribute_external: !groups.nil?,
-      skip_waiting_for_build_processing: false
+      skip_waiting_for_build_processing: skip_build_processing_wait?
     )
   end
 

@@ -123,6 +123,7 @@ Each target is its own resource, so you can add, duplicate and remove them freel
 | `fastlane_lane` | Lane invoked as `fastlane <platform> <lane>` |
 | `play_track` | Google Play track — `internal`, `alpha`, `beta`, `production` |
 | `artifact_path` | What gets uploaded. Blank uses the preset's own export path |
+| `skip_build_processing_wait` | iOS only. Skip waiting for App Store Connect to finish processing the build after upload to TestFlight |
 
 ### Build modes
 

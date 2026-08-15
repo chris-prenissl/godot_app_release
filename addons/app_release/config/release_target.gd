@@ -90,6 +90,10 @@ const PRODUCTION_STORES: PackedInt32Array = [Store.APP_STORE, Store.PLAY]
 ## Where the exported PCK is written, relative to the project root.
 @export var pck_path: String = ""
 
+## Skip waiting for App Store Connect to finish processing the build after
+## upload to TestFlight. iOS only.
+@export var skip_build_processing_wait: bool = false
+
 
 func store_id() -> String:
 	return STORE_IDS[store]
@@ -193,6 +197,8 @@ func _validate_property(property: Dictionary) -> void:
 			_set_visible(property, is_ios() and needs_native_project())
 		&"native_project_path", &"pck_path":
 			_set_visible(property, needs_native_project())
+		&"skip_build_processing_wait":
+			_set_visible(property, is_ios())
 
 
 static func _set_visible(property: Dictionary, visible: bool) -> void:
