@@ -129,8 +129,8 @@ const tooltip_copy_ci: StringName = (
 )
 const status_ci_copied_format: StringName = "CI command for %s copied to the clipboard."
 const label_release_to_format: StringName = "Release to %s"
-const label_release_selected_format: StringName = "Release selected (%d)"
-const tooltip_select_target: StringName = "Include in a combined release"
+const label_release_group_format: StringName = "Release %s"
+const label_unnamed_group: StringName = "(unnamed group)"
 
 const label_idle: StringName = "Idle"
 const label_open_setup: StringName = "Open Setup"

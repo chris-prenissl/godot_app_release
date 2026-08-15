@@ -3,14 +3,12 @@ extends VBoxContainer
 
 signal fetch_requested(store_id: String)
 signal release_requested(target_id: String)
-signal selection_toggled(target_id: String, selected: bool)
 signal ci_command_copied(target_label: String)
 
 var target: AppReleaseTarget
 
 var _tree: Tree
 var _status: Label
-var _select_check: CheckBox
 var _fetch_button: Button
 var _release_button: Button
 var _ci_command_label: Label
@@ -25,13 +23,6 @@ func setup(release_target: AppReleaseTarget) -> void:
 
 	var header := HBoxContainer.new()
 	add_child(header)
-
-	_select_check = CheckBox.new()
-	_select_check.tooltip_text = AppReleaseStrings.tooltip_select_target
-	_select_check.toggled.connect(
-		func(pressed: bool) -> void: selection_toggled.emit(target.target_id(), pressed)
-	)
-	header.add_child(_select_check)
 
 	var title := Label.new()
 	title.text = target.display_label()
@@ -127,7 +118,6 @@ func update_buttons(release_running: bool, debug_build: bool, ios_supported: boo
 	_release_button.disabled = blocked
 	_release_button.tooltip_text = reason
 	_fetch_button.disabled = release_running
-	_select_check.disabled = release_running
 
 
 func set_status(text: String) -> void:
@@ -136,7 +126,6 @@ func set_status(text: String) -> void:
 
 func fill(rows: Array) -> void:
 	var own_rows := rows
-	# Google Play returns every track in one response; keep only this one.
 	if target.store == AppReleaseTarget.Store.PLAY and not target.play_track.is_empty():
 		own_rows = rows.filter(
 			func(row: Variant) -> bool: return str(row.get("track", "")) == target.play_track

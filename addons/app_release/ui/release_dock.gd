@@ -18,14 +18,14 @@ var _notes_hint: Label
 var _debug_check: CheckBox
 var _status_label: Label
 var _open_setup_button: Button
-var _release_selected_button: Button
 var _stop_button: Button
 var _log_view: TextEdit
-var _columns_box: VBoxContainer
+var _columns_box: HBoxContainer
 var _release_tab: PanelContainer
 var _setup_panel: _SetupPanel
 
 var _columns: Dictionary = {}
+var _group_release_buttons: Dictionary = {}
 
 var _poll_timer: Timer
 var _fetch_timer: Timer
@@ -41,7 +41,6 @@ var _fetch_queue: PackedStringArray = []
 var _store_rows: Dictionary = {}
 
 var _pending_target_ids: PackedStringArray = []
-var _selected_target_ids: Dictionary = {}
 
 var _fetched_once := false
 var _config_modified_time := 0
@@ -125,17 +124,11 @@ func _build_ui() -> void:
 	_open_setup_button.pressed.connect(_show_setup_tab)
 	status_row.add_child(_open_setup_button)
 
-	_release_selected_button = Button.new()
-	_release_selected_button.text = AppReleaseStrings.label_release_selected_format % 0
-	_release_selected_button.disabled = true
-	_release_selected_button.pressed.connect(_on_release_selected_pressed)
-	status_row.add_child(_release_selected_button)
-
 	var split := VSplitContainer.new()
 	split.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	root.add_child(split)
 
-	_columns_box = VBoxContainer.new()
+	_columns_box = HBoxContainer.new()
 	_columns_box.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	split.add_child(_columns_box)
 
@@ -312,24 +305,57 @@ func _update_status_for_config() -> void:
 func _show_setup_tab() -> void:
 	current_tab = _setup_tab_index
 
-
 func _rebuild_columns() -> void:
 	for child in _columns_box.get_children():
 		_columns_box.remove_child(child)
 		child.queue_free()
 	_columns.clear()
-	_selected_target_ids.clear()
+	_group_release_buttons.clear()
 
 	if _config == null:
 		return
-	var targets := _config.enabled_targets()
-	if targets.is_empty():
-		return
 
-	targets.sort_custom(
-		func(a: AppReleaseTarget, b: AppReleaseTarget) -> bool:
-			return a.release_kind_id() < b.release_kind_id()
+	var group_boxes: Array[Control] = []
+	for group in _config.release_groups:
+		if group == null:
+			continue
+		var targets := group.enabled_targets()
+		if targets.is_empty():
+			continue
+		group_boxes.append(_build_group_box(group, targets))
+
+	if group_boxes.is_empty():
+		return
+	_columns_box.add_child(_chain(group_boxes))
+
+	_notes_hint.visible = _config.enabled_targets().any(
+		func(candidate: AppReleaseTarget) -> bool: return candidate.release_notes_are_not_possible()
 	)
+
+	for store_id: String in _store_rows:
+		_fill_store_columns(store_id, _store_rows[store_id])
+
+	_update_buttons()
+
+
+func _build_group_box(group: AppReleaseGroup, targets: Array[AppReleaseTarget]) -> Control:
+	var panel := PanelContainer.new()
+	panel.add_theme_stylebox_override("panel", _group_panel_style())
+	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+
+	var box := VBoxContainer.new()
+	panel.add_child(box)
+
+	var group_label: String = (
+		group.name if not group.name.is_empty() else str(AppReleaseStrings.label_unnamed_group)
+	)
+
+	var title := Label.new()
+	title.text = group_label
+	title.add_theme_font_size_override("font_size", 17)
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(title)
 
 	var built: Array[Control] = []
 	for target in targets:
@@ -340,31 +366,52 @@ func _rebuild_columns() -> void:
 			column.set_status(AppReleaseStrings.status_target_setup_missing_format % config_error)
 		column.fetch_requested.connect(_on_fetch_store_requested)
 		column.release_requested.connect(_on_release_pressed)
-		column.selection_toggled.connect(_on_selection_toggled)
 		column.ci_command_copied.connect(_on_ci_command_copied)
 		_columns[target.target_id()] = column
 		built.append(column)
 
-	var chain: Control = built[built.size() - 1]
-	for i in range(built.size() - 2, -1, -1):
+	var targets_row := _chain(built)
+	targets_row.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	box.add_child(targets_row)
+
+	var release_group_button := Button.new()
+	release_group_button.text = AppReleaseStrings.label_release_group_format % group_label
+	release_group_button.pressed.connect(_on_release_group_pressed.bind(group))
+	box.add_child(release_group_button)
+	_group_release_buttons[group] = release_group_button
+
+	return panel
+
+
+static func _group_panel_style() -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0, 0, 0, 0)
+	style.border_width_left = 1
+	style.border_width_top = 1
+	style.border_width_right = 1
+	style.border_width_bottom = 1
+	style.border_color = Color(1, 1, 1, 0.25)
+	style.content_margin_left = 6
+	style.content_margin_top = 6
+	style.content_margin_right = 6
+	style.content_margin_bottom = 6
+	return style
+
+
+## Nests `controls` pairwise into a resizable [HSplitContainer] chain — the same shape for
+## a row of target columns within a group, or a row of group boxes across the whole panel.
+static func _chain(controls: Array[Control]) -> Control:
+	var chain: Control = controls[controls.size() - 1]
+	for i in range(controls.size() - 2, -1, -1):
 		var pair := HSplitContainer.new()
 		pair.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		pair.size_flags_vertical = Control.SIZE_EXPAND_FILL
-		pair.add_child(built[i])
+		pair.add_child(controls[i])
 		pair.add_child(chain)
 		chain = pair
 	chain.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	chain.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_columns_box.add_child(chain)
-
-	_notes_hint.visible = targets.any(
-		func(candidate: AppReleaseTarget) -> bool: return candidate.release_notes_are_not_possible()
-	)
-
-	for store_id: String in _store_rows:
-		_fill_store_columns(store_id, _store_rows[store_id])
-
-	_update_buttons()
+	return chain
 
 func _restore_form_state() -> void:
 	_groups_edit.text = str(_load_setting(AppReleaseStrings.setting_last_groups, ""))
@@ -446,23 +493,17 @@ func _on_release_pressed(target_id: String) -> void:
 	_request_release(PackedStringArray([target_id]))
 
 
-func _on_selection_toggled(target_id: String, selected: bool) -> void:
-	if selected:
-		_selected_target_ids[target_id] = true
-	else:
-		_selected_target_ids.erase(target_id)
-	_update_release_selected_button()
+func _on_release_group_pressed(group: AppReleaseGroup) -> void:
+	_request_release(PackedStringArray(
+		group.enabled_targets().map(func(target: AppReleaseTarget) -> String: return target.target_id())
+	))
 
 
-func _on_release_selected_pressed() -> void:
-	_request_release(PackedStringArray(_selected_target_ids.keys()))
+func _update_group_release_buttons() -> void:
+	for group: AppReleaseGroup in _group_release_buttons:
+		var button: Button = _group_release_buttons[group]
+		button.disabled = group.runnable_targets().is_empty() or not _runs.is_empty()
 
-
-func _update_release_selected_button() -> void:
-	_release_selected_button.text = (
-		AppReleaseStrings.label_release_selected_format % _selected_target_ids.size()
-	)
-	_release_selected_button.disabled = _selected_target_ids.is_empty() or not _runs.is_empty()
 
 func _request_release(target_ids: PackedStringArray) -> void:
 	if target_ids.is_empty() or not _runs.is_empty() or _config == null:
@@ -824,7 +865,7 @@ func _update_buttons() -> void:
 		var column: _TargetColumn = _columns[target_id]
 		column.update_buttons(running, _debug_check.button_pressed, ios_supported)
 
-	_update_release_selected_button()
+	_update_group_release_buttons()
 	_update_ci_commands()
 
 
