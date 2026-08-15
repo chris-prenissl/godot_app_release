@@ -188,7 +188,7 @@ func _on_create_config_pressed() -> void:
 		return
 	EditorInterface.get_resource_filesystem().scan()
 	_set_message("Created %s with %d target(s). Open it and check each target's export preset." % [
-		AppReleaseStrings.config_resource_path, config.targets.size(),
+		AppReleaseStrings.config_resource_path, config.all_targets().size(),
 	])
 	refresh()
 	config_changed.emit()

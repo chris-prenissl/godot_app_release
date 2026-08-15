@@ -19,6 +19,10 @@ const ENV_TEMPLATES: Dictionary = {
 	"env.example": "fastlane/.env",
 }
 
+const BUNDLER_TEMPLATES: Dictionary = {
+	"bundle_config": ".bundle/config",
+}
+
 const GITIGNORE_ENTRIES: PackedStringArray = [
 	"logs/",
 	".release_tools/",
@@ -33,7 +37,7 @@ const _GITIGNORE_HEADER: String = "# App Release plugin"
 
 static func create_default_config() -> AppReleaseConfig:
 	var config := AppReleaseConfig.new()
-	config.targets = build_default_targets()
+	config.release_groups = build_default_groups()
 
 	var ios_preset := AppReleasePresets.get_first_preset_for_platform(AppReleaseStrings.platform_ios)
 	config.ios_bundle_id = AppReleasePresets.bundle_identifier_of(ios_preset)
@@ -53,7 +57,27 @@ static func create_default_config() -> AppReleaseConfig:
 	return AppReleaseConfig.load_project_config()
 
 
-static func build_default_targets() -> Array[AppReleaseTarget]:
+static func build_default_groups() -> Array[AppReleaseGroup]:
+	var test_group := AppReleaseGroup.new()
+	test_group.name = "Test"
+	var store_group := AppReleaseGroup.new()
+	store_group.name = "Store"
+
+	for target in _build_default_targets():
+		if target.release_kind_id() == AppReleaseTarget.RELEASE_KIND_STORE:
+			store_group.targets.append(target)
+		else:
+			test_group.targets.append(target)
+
+	var groups: Array[AppReleaseGroup] = []
+	if not test_group.targets.is_empty():
+		groups.append(test_group)
+	if not store_group.targets.is_empty():
+		groups.append(store_group)
+	return groups
+
+
+static func _build_default_targets() -> Array[AppReleaseTarget]:
 	var targets: Array[AppReleaseTarget] = []
 
 	var ios_preset := AppReleasePresets.get_first_preset_for_platform(AppReleaseStrings.platform_ios)
@@ -90,6 +114,8 @@ static func scaffold_fastlane() -> Dictionary:
 		jobs.append([template_name, FASTLANE_TEMPLATES[template_name]])
 	for template_name in ENV_TEMPLATES:
 		jobs.append([template_name, ENV_TEMPLATES[template_name]])
+	for template_name in BUNDLER_TEMPLATES:
+		jobs.append([template_name, BUNDLER_TEMPLATES[template_name]])
 
 	for job in jobs:
 		var template_name: String = job[0]
@@ -162,7 +188,7 @@ static func append_gitignore() -> PackedStringArray:
 
 
 static func is_fastlane_scaffolded() -> bool:
-	for destination in FASTLANE_TEMPLATES.values() + ENV_TEMPLATES.values():
+	for destination in FASTLANE_TEMPLATES.values() + ENV_TEMPLATES.values() + BUNDLER_TEMPLATES.values():
 		var absolute := ProjectSettings.globalize_path(
 			AppReleaseStrings.resource_path_prefix + str(destination)
 		)

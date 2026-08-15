@@ -58,7 +58,7 @@ func _refresh_inspected_presets() -> void:
 		edited.notify_property_list_changed()
 	elif edited is AppReleaseConfig:
 		edited.notify_property_list_changed()
-		for target in (edited as AppReleaseConfig).targets:
+		for target in (edited as AppReleaseConfig).all_targets():
 			if target != null:
 				target.notify_property_list_changed()
 
