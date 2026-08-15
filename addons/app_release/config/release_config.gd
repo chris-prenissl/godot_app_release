@@ -48,7 +48,9 @@ func identity_error(platform: String) -> String:
 	if bundle_identifier_for(platform).is_empty():
 		if platform == AppReleaseStrings.platform_ios:
 			return "No iOS bundle id set in release_config.tres."
-		return "No Android package name set in release_config.tres."
+		if platform == AppReleaseStrings.platform_android:
+			return "No Android package name set in release_config.tres."
+		return "No bundle identifier configured for platform \"%s\"." % platform
 	return ""
 
 func runnable_targets() -> Array[AppReleaseTarget]:

@@ -1,0 +1,1 @@
+Fixes a crash on launch.

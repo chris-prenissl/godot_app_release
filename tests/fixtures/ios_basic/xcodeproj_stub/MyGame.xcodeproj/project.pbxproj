@@ -1,0 +1,2 @@
+// stub pbxproj for tests — content is irrelevant, only the .xcodeproj directory's
+// existence matters to release.sh's build_ios_with_xcode() precondition check.

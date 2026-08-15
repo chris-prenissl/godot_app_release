@@ -1,0 +1,14 @@
+{
+	"stores": {
+		"testflight": {
+			"platform": "ios",
+			"bundle_identifier": "com.example.apprelease",
+			"export_preset": "iOS"
+		},
+		"app_store": {
+			"platform": "ios",
+			"bundle_identifier": "com.example.apprelease",
+			"export_preset": "iOS"
+		}
+	}
+}
