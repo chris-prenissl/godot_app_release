@@ -87,10 +87,12 @@ func _build_ui() -> void:
 
 
 func refresh() -> void:
+	refresh_with(AppReleaseConfig.load_project_config())
+
+func refresh_with(config: AppReleaseConfig) -> void:
 	for child in _checklist.get_children():
 		child.queue_free()
 
-	var config := AppReleaseConfig.load_project_config(ResourceLoader.CACHE_MODE_REPLACE)
 	_create_config_button.disabled = config != null
 	_open_config_button.disabled = config == null
 	_scripts_button.disabled = _installer.is_running() or (
@@ -119,7 +121,7 @@ func _on_create_config_pressed() -> void:
 
 
 func _on_open_config_pressed() -> void:
-	var config := AppReleaseConfig.load_project_config(ResourceLoader.CACHE_MODE_REPLACE)
+	var config := AppReleaseConfig.load_project_config()
 	if config == null:
 		return
 	EditorInterface.edit_resource(config)

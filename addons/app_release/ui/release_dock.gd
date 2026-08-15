@@ -34,6 +34,7 @@ var _pending_target_ids: PackedStringArray = []
 var _fetched_once := false
 var _config_modified_time := 0
 var _setup_tab_index := 0
+var _content_reload_pending := false
 
 
 func _init() -> void:
@@ -218,38 +219,19 @@ func _label(text: String) -> Label:
 
 func _reload_config() -> void:
 	_config_modified_time = _current_config_modified_time()
-	_config = AppReleaseConfig.load_project_config(ResourceLoader.CACHE_MODE_REPLACE)
-	_wire_config_signals()
+	_config = AppReleaseConfig.load_project_config()
 	_rebuild_columns()
 	_restore_form_state()
-	_setup_panel.refresh()
-	_update_status_for_config()
-
-func _on_config_content_changed() -> void:
-	_wire_config_signals()
-	_rebuild_columns()
-	_restore_form_state()
-	_setup_panel.refresh()
+	_setup_panel.refresh_with(_config)
 	_update_status_for_config()
 
 
-func _wire_config_signals() -> void:
-	if _config == null:
-		return
-	_connect_once(_config.changed, _on_config_content_changed)
-	for group in _config.release_groups:
-		if group == null:
-			continue
-		_connect_once(group.changed, _on_config_content_changed)
-		for target in group.targets:
-			if target == null:
-				continue
-			_connect_once(target.changed, _on_config_content_changed)
-
-
-static func _connect_once(source: Signal, callable: Callable) -> void:
-	if not source.is_connected(callable):
-		source.connect(callable)
+func _apply_config_content_changed() -> void:
+	_content_reload_pending = false
+	_rebuild_columns()
+	_restore_form_state()
+	_setup_panel.refresh_with(_config)
+	_update_status_for_config()
 
 
 func _update_status_for_config() -> void:
