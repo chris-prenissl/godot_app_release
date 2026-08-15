@@ -4,12 +4,14 @@ extends VBoxContainer
 signal fetch_requested(store_id: String)
 signal release_requested(target_id: String)
 signal ci_command_copied(target_label: String)
+signal groups_changed()
 
 var target: AppReleaseTarget
 
 var _tree: Tree
 var _status: Label
 var _fetch_button: Button
+var _groups_edit: LineEdit
 var _release_button: Button
 var _ci_command_label: Label
 var _ci_command_edit: LineEdit
@@ -62,6 +64,14 @@ func setup(release_target: AppReleaseTarget) -> void:
 	for i in AppReleaseStrings.tree_columns.size():
 		_tree.set_column_title(i, AppReleaseStrings.tree_columns[i])
 	add_child(_tree)
+
+	if target.supports_tester_groups:
+		_groups_edit = LineEdit.new()
+		_groups_edit.text = target.test_groups
+		_groups_edit.placeholder_text = AppReleaseStrings.placeholder_groups
+		_groups_edit.tooltip_text = AppReleaseStrings.tooltip_groups
+		_groups_edit.text_changed.connect(_on_groups_text_changed)
+		add_child(_groups_edit)
 
 	_release_button = Button.new()
 	_release_button.text = AppReleaseStrings.label_release_to_format % target.display_label()
@@ -122,6 +132,11 @@ func update_buttons(release_running: bool, debug_build: bool, ios_supported: boo
 
 func set_status(text: String) -> void:
 	_status.text = text
+
+
+func _on_groups_text_changed(text: String) -> void:
+	target.test_groups = text.strip_edges()
+	groups_changed.emit()
 
 
 func fill(rows: Array) -> void:

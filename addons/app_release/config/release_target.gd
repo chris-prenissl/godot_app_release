@@ -80,6 +80,10 @@ const RELEASE_KIND_STORE: StringName = "store"
 
 @export var allow_debug_build: bool = true
 @export var supports_tester_groups: bool = true
+## Comma-separated tester group aliases as defined in Firebase App Distribution /
+## App Store Connect. Editable from the Release panel's own column for this target, or
+## here. Only meaningful when [member supports_tester_groups] is set.
+@export var test_groups: String = ""
 @export var enabled: bool = true
 
 
@@ -211,6 +215,8 @@ func _validate_property(property: Dictionary) -> void:
 			_set_visible(property, store == Store.PLAY)
 		&"allow_debug_build", &"supports_tester_groups":
 			_set_visible(property, not store in PRODUCTION_STORES)
+		&"test_groups":
+			_set_visible(property, supports_tester_groups)
 		&"xcode_scheme", &"export_options_plist":
 			_set_visible(property, is_ios() and needs_native_project())
 		&"native_project_path", &"pck_path":

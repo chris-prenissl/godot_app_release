@@ -38,7 +38,7 @@ REQUIRED
 
 OPTIONS
   --notes-file <path>  File holding the release notes.
-  --groups <a,b>       Comma-separated tester groups (TestFlight / Firebase only).
+  --groups <a,b>       Override the target's own test_groups (TestFlight / Firebase only).
   --debug              Export with the debug template. Refused by App Store and Play.
   --list               List the targets and exit.
   --help               Show this text.
@@ -125,11 +125,10 @@ func _run(config: AppReleaseConfig, options: Dictionary) -> int:
 			_fail("--notes-file not found: %s" % notes_file)
 			return _EXIT_USAGE
 
-	var groups := str(options.get("groups", ""))
 	var debug_build := options.has("debug")
 
 	var write_result := AppReleaseRunContext.write_run_env(
-		config, target, version, build, notes_file, groups, debug_build
+		config, target, version, build, notes_file, debug_build, str(options.get("groups", ""))
 	)
 	if write_result != OK:
 		_fail("could not write run.env (%s)." % error_string(write_result))

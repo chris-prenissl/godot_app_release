@@ -40,9 +40,10 @@ static func write_run_env(
 	version: String,
 	build: int,
 	notes_file: String,
-	groups: String,
 	debug_build: bool,
+	groups_override: String = "",
 ) -> Error:
+	var groups := groups_override if not groups_override.is_empty() else target.test_groups
 	var root := ProjectSettings.globalize_path(AppReleaseStrings.resource_path_prefix)
 	var values: Dictionary = {
 		AppReleaseStrings.env_target_id: target.target_id(),

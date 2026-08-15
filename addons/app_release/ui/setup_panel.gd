@@ -3,15 +3,10 @@ extends VBoxContainer
 
 signal config_changed
 
+const _ChecklistRow := preload("checklist_row.gd")
+
 const _COLOR_OK := Color(0.36, 0.75, 0.55)
-const _COLOR_WARNING := Color(0.90, 0.72, 0.32)
 const _COLOR_ERROR := Color(0.85, 0.40, 0.40)
-
-const _DOCS_COLUMN_WIDTH := 62
-const _COLOR_DOCS_LINK := Color(0.44, 0.68, 0.94)
-
-const _INSTALL_LOG_NAME := "bundle_install.log"
-const _POLL_INTERVAL := 0.5
 
 var _checklist: VBoxContainer
 var _message: Label
@@ -19,9 +14,7 @@ var _create_config_button: Button
 var _open_config_button: Button
 var _scripts_button: Button
 
-var _install_timer: Timer
-var _install_pid := -1
-var _install_log_path := ""
+var _installer: AppReleaseBundleInstaller
 var _scaffold_summary := ""
 
 
@@ -89,10 +82,8 @@ func _build_ui() -> void:
 	_checklist.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.add_child(_checklist)
 
-	_install_timer = Timer.new()
-	_install_timer.wait_time = _POLL_INTERVAL
-	_install_timer.timeout.connect(_on_install_poll)
-	add_child(_install_timer, false, Node.INTERNAL_MODE_BACK)
+	_installer = AppReleaseBundleInstaller.new(self)
+	_installer.finished.connect(_on_install_finished)
 
 
 func refresh() -> void:
@@ -102,81 +93,14 @@ func refresh() -> void:
 	var config := AppReleaseConfig.load_project_config(ResourceLoader.CACHE_MODE_REPLACE)
 	_create_config_button.disabled = config != null
 	_open_config_button.disabled = config == null
-	_scripts_button.disabled = _install_pid > 0 or (
+	_scripts_button.disabled = _installer.is_running() or (
 		AppReleaseScaffolder.is_fastlane_scaffolded() and AppReleaseProcess.are_gems_installed()
 	)
 
 	for entry in AppReleaseEnvironment.run(config):
-		_checklist.add_child(_build_row(entry))
-
-
-func _build_row(entry: Dictionary) -> Control:
-	var row := VBoxContainer.new()
-	row.add_theme_constant_override("separation", 0)
-
-	var line := HBoxContainer.new()
-	row.add_child(line)
-
-	var level: int = entry["level"]
-	var marker := Label.new()
-	var failed_marker := "!" if level == AppReleaseEnvironment.Level.WARNING else "X"
-	marker.text = "OK" if entry["ok"] else failed_marker
-	marker.custom_minimum_size = Vector2(28, 0)
-	marker.add_theme_color_override("font_color", _level_color(level))
-	line.add_child(marker)
-
-	var name_label := Label.new()
-	name_label.text = str(entry["name"])
-	name_label.custom_minimum_size = Vector2(180, 0)
-	line.add_child(name_label)
-
-	var detail := Label.new()
-	detail.text = str(entry["detail"])
-	line.add_child(detail)
-
-	var docs: String = str(entry.get("docs", ""))
-	if not docs.is_empty():
-		line.add_child(_build_docs_link(docs))
-
-	var hint: String = str(entry["hint"])
-	if not hint.is_empty():
-		var hint_label := Label.new()
-		hint_label.text = "        %s" % hint
-		hint_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		hint_label.add_theme_color_override("font_color", Color(0.6, 0.6, 0.6))
-		row.add_child(hint_label)
-
-	return row
-
-
-func _build_docs_link(url: String) -> LinkButton:
-	var link := LinkButton.new()
-	link.text = AppReleaseStrings.label_docs
-	link.tooltip_text = AppReleaseStrings.tooltip_docs_format % url
-	link.uri = url
-	link.underline = LinkButton.UNDERLINE_MODE_ALWAYS
-	link.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-	link.custom_minimum_size = Vector2(_DOCS_COLUMN_WIDTH, 0)
-
-	var accent := _COLOR_DOCS_LINK
-	var editor_theme := EditorInterface.get_editor_theme()
-	if editor_theme != null and editor_theme.has_color("accent_color", "Editor"):
-		accent = editor_theme.get_color("accent_color", "Editor")
-	link.add_theme_color_override("font_color", accent)
-	link.add_theme_color_override("font_focus_color", accent)
-	link.add_theme_color_override("font_hover_color", accent.lightened(0.3))
-	link.add_theme_color_override("font_pressed_color", accent.darkened(0.2))
-	return link
-
-
-static func _level_color(level: int) -> Color:
-	match level:
-		AppReleaseEnvironment.Level.OK:
-			return _COLOR_OK
-		AppReleaseEnvironment.Level.WARNING:
-			return _COLOR_WARNING
-		_:
-			return _COLOR_ERROR
+		var row := _ChecklistRow.new()
+		row.setup(entry)
+		_checklist.add_child(row)
 
 
 func _on_create_config_pressed() -> void:
@@ -202,7 +126,7 @@ func _on_open_config_pressed() -> void:
 
 
 func _on_scaffold_pressed() -> void:
-	if _install_pid > 0:
+	if _installer.is_running():
 		return
 
 	var result := AppReleaseScaffolder.scaffold_fastlane()
@@ -216,17 +140,9 @@ func _on_scaffold_pressed() -> void:
 	if not skipped.is_empty():
 		_scaffold_summary += "Kept existing %s. " % ", ".join(skipped)
 
-	_start_bundle_install()
-
-
-func _start_bundle_install() -> void:
 	var config := AppReleaseConfig.load_project_config()
 	var extra := config.extra_path_entries if config != null else PackedStringArray()
-
-	_install_log_path = AppReleaseRunContext.work_dir().path_join(_INSTALL_LOG_NAME)
-	var command := AppReleaseProcess.bundle_install_command(_install_log_path, extra)
-	_install_pid = OS.create_process(str(command["executable"]), command["arguments"])
-	if _install_pid <= 0:
+	if not _installer.start(extra):
 		_set_message(
 			_scaffold_summary + "Could not start bundle install — is Ruby installed?", true
 		)
@@ -237,24 +153,19 @@ func _start_bundle_install() -> void:
 	_set_message(
 		_scaffold_summary + "Installing Ruby gems (bundle install), this can take a few minutes..."
 	)
-	_install_timer.start()
 
 
-func _on_install_poll() -> void:
-	if _install_pid > 0 and OS.is_process_running(_install_pid):
-		return
-	_install_timer.stop()
-	_install_pid = -1
+func _on_install_finished(succeeded: bool) -> void:
 	_scripts_button.disabled = false
 
-	if AppReleaseProcess.are_gems_installed():
+	if succeeded:
 		_set_message(
 			_scaffold_summary
 			+ "Ruby gems installed. Next: fill in your store credentials in fastlane/.env."
 		)
 	else:
 		_set_message(
-			_scaffold_summary + "bundle install failed — see %s" % _install_log_path, true
+			_scaffold_summary + "bundle install failed — see %s" % _installer.log_path, true
 		)
 	refresh()
 

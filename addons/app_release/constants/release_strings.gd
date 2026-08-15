@@ -103,7 +103,6 @@ const env_release_groups: StringName = "RELEASE_GROUPS"
 const env_ios_skip_build_processing_wait: StringName = "IOS_SKIP_BUILD_PROCESSING_WAIT"
 
 # --- editor settings keys ------------------------------------------------------
-const setting_last_groups: StringName = "app_release/last_groups"
 const setting_last_notes: StringName = "app_release/last_notes"
 const setting_last_debug: StringName = "app_release/last_debug"
 
@@ -114,7 +113,6 @@ const tab_setup: StringName = "Setup"
 
 const label_version_name: StringName = "Version name"
 const label_build_number: StringName = "Build number"
-const label_test_groups: StringName = "Test groups"
 const label_release_notes: StringName = "Release notes"
 const label_log: StringName = "Log"
 const label_debug_build: StringName = "Debug build"
