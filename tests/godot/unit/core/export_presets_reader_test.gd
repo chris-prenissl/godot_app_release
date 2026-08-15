@@ -4,28 +4,24 @@ const _FIXTURE_PATH := "res://tests/fixtures/ios_basic/export_presets.cfg"
 
 
 class _FixtureBacked:
-	extends GutTest
+	extends FixtureSeededProjectFile
 
-	var _real_export_presets_path: String
 	var _preset_ios: Dictionary
 	var _preset_android: Dictionary
 
-	func before_each() -> void:
-		_real_export_presets_path = ProjectSettings.globalize_path(AppReleaseStrings.export_presets_path)
+	func _real_resource_path() -> String:
+		return AppReleaseStrings.export_presets_path
+
+	func _fixture_text() -> String:
 		var fixture := FileAccess.open(_FIXTURE_PATH, FileAccess.READ)
 		var text := fixture.get_as_text()
 		fixture.close()
+		return text
 
-		var sink := FileAccess.open(_real_export_presets_path, FileAccess.WRITE)
-		sink.store_string(text)
-		sink.close()
-
+	func before_each() -> void:
+		super.before_each()
 		_preset_ios = AppReleasePresets.find_preset("iOS")
 		_preset_android = AppReleasePresets.find_preset("Android")
-
-	func after_each() -> void:
-		if FileAccess.file_exists(_real_export_presets_path):
-			DirAccess.remove_absolute(_real_export_presets_path)
 
 
 class TestListPresets:
@@ -140,7 +136,7 @@ class TestPresetsModifiedTime:
 		assert_gt(AppReleasePresets.presets_modified_time(), 0)
 
 	func test_returns_zero_when_no_export_presets_cfg() -> void:
-		DirAccess.remove_absolute(_real_export_presets_path)
+		DirAccess.remove_absolute(_real_path)
 		assert_eq(AppReleasePresets.presets_modified_time(), 0)
 
 

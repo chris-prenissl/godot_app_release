@@ -4,26 +4,19 @@ const _FIXTURE_PATH := "res://tests/fixtures/ios_basic/export_presets.cfg"
 
 
 class _FixtureBacked:
-	extends GutTest
+	extends FixtureSeededProjectFile
 
-	var _real_export_presets_path: String
+	func _real_resource_path() -> String:
+		return AppReleaseStrings.export_presets_path
 
-	func before_each() -> void:
-		_real_export_presets_path = ProjectSettings.globalize_path(AppReleaseStrings.export_presets_path)
+	func _fixture_text() -> String:
 		var fixture := FileAccess.open(_FIXTURE_PATH, FileAccess.READ)
 		var text := fixture.get_as_text()
 		fixture.close()
-
-		var sink := FileAccess.open(_real_export_presets_path, FileAccess.WRITE)
-		sink.store_string(text)
-		sink.close()
-
-	func after_each() -> void:
-		if FileAccess.file_exists(_real_export_presets_path):
-			DirAccess.remove_absolute(_real_export_presets_path)
+		return text
 
 	func _read_real_export_presets() -> String:
-		var file := FileAccess.open(_real_export_presets_path, FileAccess.READ)
+		var file := FileAccess.open(_real_path, FileAccess.READ)
 		var text := file.get_as_text()
 		file.close()
 		return text

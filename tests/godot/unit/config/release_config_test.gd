@@ -1,24 +1,18 @@
 extends GutTest
 
 class _FixtureBacked:
-	extends GutTest
+	extends FixtureSeededProjectFile
 
 	const _FIXTURE_PATH := "res://tests/fixtures/ios_basic/export_presets.cfg"
-	var _real_export_presets_path: String
 
-	func before_each() -> void:
-		_real_export_presets_path = ProjectSettings.globalize_path(AppReleaseStrings.export_presets_path)
+	func _real_resource_path() -> String:
+		return AppReleaseStrings.export_presets_path
+
+	func _fixture_text() -> String:
 		var fixture := FileAccess.open(_FIXTURE_PATH, FileAccess.READ)
 		var text := fixture.get_as_text()
 		fixture.close()
-
-		var sink := FileAccess.open(_real_export_presets_path, FileAccess.WRITE)
-		sink.store_string(text)
-		sink.close()
-
-	func after_each() -> void:
-		if FileAccess.file_exists(_real_export_presets_path):
-			DirAccess.remove_absolute(_real_export_presets_path)
+		return text
 
 	func _make_valid_ios_target() -> AppReleaseTarget:
 		var target := AppReleaseTarget.new()
@@ -163,16 +157,10 @@ class TestRunnableTargets:
 
 
 class TestLoadProjectConfig:
-	extends GutTest
+	extends RealProjectFileFixture
 
-	var _real_config_path: String
-
-	func before_each() -> void:
-		_real_config_path = ProjectSettings.globalize_path(AppReleaseStrings.config_resource_path)
-
-	func after_each() -> void:
-		if FileAccess.file_exists(_real_config_path):
-			DirAccess.remove_absolute(_real_config_path)
+	func _real_resource_path() -> String:
+		return AppReleaseStrings.config_resource_path
 
 	func test_returns_null_when_no_config_resource_exists() -> void:
 		assert_null(AppReleaseConfig.load_project_config())

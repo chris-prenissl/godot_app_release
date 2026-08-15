@@ -12,25 +12,19 @@ application/bundle_identifier="com.example.blank"
 
 
 class _FixtureBacked:
-	extends GutTest
+	extends FixtureSeededProjectFile
 
-	var _real_export_presets_path: String
+	func _real_resource_path() -> String:
+		return AppReleaseStrings.export_presets_path
 
-	func before_each() -> void:
-		_real_export_presets_path = ProjectSettings.globalize_path(AppReleaseStrings.export_presets_path)
+	func _fixture_text() -> String:
 		var fixture := FileAccess.open(_FIXTURE_PATH, FileAccess.READ)
 		var text := fixture.get_as_text()
 		fixture.close()
-		_write_export_presets(text)
-
-	func after_each() -> void:
-		if FileAccess.file_exists(_real_export_presets_path):
-			DirAccess.remove_absolute(_real_export_presets_path)
+		return text
 
 	func _write_export_presets(text: String) -> void:
-		var sink := FileAccess.open(_real_export_presets_path, FileAccess.WRITE)
-		sink.store_string(text)
-		sink.close()
+		_write(text)
 
 	func _make_valid_ios_target() -> AppReleaseTarget:
 		var target := AppReleaseTarget.new()
