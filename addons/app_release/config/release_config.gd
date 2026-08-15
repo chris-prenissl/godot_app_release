@@ -93,10 +93,12 @@ func find_target(target_id: String) -> AppReleaseTarget:
 			return target
 	return null
 
-static func load_project_config() -> AppReleaseConfig:
+static func load_project_config(
+	cache_mode: ResourceLoader.CacheMode = ResourceLoader.CACHE_MODE_IGNORE
+) -> AppReleaseConfig:
 	if not ResourceLoader.exists(AppReleaseStrings.config_resource_path):
 		return null
 	var resource := ResourceLoader.load(
-		AppReleaseStrings.config_resource_path, "AppReleaseConfig", ResourceLoader.CACHE_MODE_IGNORE
+		AppReleaseStrings.config_resource_path, "AppReleaseConfig", cache_mode
 	)
 	return resource as AppReleaseConfig

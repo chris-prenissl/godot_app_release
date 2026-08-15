@@ -98,10 +98,6 @@ func setup(release_target: AppReleaseTarget) -> void:
 	ci_row.add_child(copy_ci_button)
 
 
-func set_selected(value: bool) -> void:
-	_select_check.set_pressed_no_signal(value)
-
-
 func set_ci_command(command: String) -> void:
 	_ci_command_edit.text = command
 	if command.is_empty():

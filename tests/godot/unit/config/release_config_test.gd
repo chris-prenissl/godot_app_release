@@ -221,3 +221,19 @@ class TestLoadProjectConfig:
 		var loaded := AppReleaseConfig.load_project_config()
 		assert_not_null(loaded)
 		assert_eq(loaded.ios_bundle_id, "com.example.saved")
+
+	func test_cache_mode_replace_returns_the_same_instance_across_calls() -> void:
+		var config := AppReleaseConfig.new()
+		ResourceSaver.save(config, AppReleaseStrings.config_resource_path)
+
+		var first := AppReleaseConfig.load_project_config(ResourceLoader.CACHE_MODE_REPLACE)
+		var second := AppReleaseConfig.load_project_config(ResourceLoader.CACHE_MODE_REPLACE)
+		assert_eq(first, second)
+
+	func test_default_cache_mode_ignore_returns_a_fresh_instance_each_call() -> void:
+		var config := AppReleaseConfig.new()
+		ResourceSaver.save(config, AppReleaseStrings.config_resource_path)
+
+		var first := AppReleaseConfig.load_project_config()
+		var second := AppReleaseConfig.load_project_config()
+		assert_ne(first, second)

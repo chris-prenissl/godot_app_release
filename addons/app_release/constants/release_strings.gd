@@ -132,14 +132,6 @@ const label_release_to_format: StringName = "Release to %s"
 const label_release_selected_format: StringName = "Release selected (%d)"
 const tooltip_select_target: StringName = "Include in a combined release"
 
-const label_save_group: StringName = "Save selection as group…"
-const dialog_save_group_title: StringName = "Save release group"
-const dialog_save_group_ok: StringName = "Save"
-const label_save_group_name: StringName = "Name for this release group:"
-const placeholder_group_name: StringName = "e.g. Beta"
-const tooltip_recall_group_format: StringName = "Check the boxes for: %s"
-const label_delete_group: StringName = "×"
-const tooltip_delete_group: StringName = "Delete this release group"
 const label_idle: StringName = "Idle"
 const label_open_setup: StringName = "Open Setup"
 const tooltip_open_setup: StringName = (
@@ -186,6 +178,8 @@ const error_no_config: StringName = (
 	"No release_config.tres yet — open the Setup tab and create one."
 )
 const error_no_targets: StringName = "release_config.tres has no enabled targets."
+const error_targets_need_setup_format: StringName = "Setup is missing for: %s"
+const status_target_setup_missing_format: StringName = "⚠ Setup missing: %s"
 const error_start_failed: StringName = "Failed to start the release script."
 const error_no_stderr: StringName = "(no stderr captured)"
 const error_empty_stderr: StringName = "(stderr empty)"
@@ -204,9 +198,6 @@ const docs_fastlane_android: StringName = (
 const docs_fastlane_keys: StringName = "https://docs.fastlane.tools/best-practices/keys/"
 const docs_app_store_connect_api: StringName = "https://docs.fastlane.tools/app-store-connect-api/"
 const docs_play_service_account: StringName = "https://docs.fastlane.tools/actions/supply/#setup"
-const docs_firebase_credentials: StringName = (
-	"https://firebase.google.com/docs/app-distribution/authenticate-service-account"
-)
 const docs_firebase_fastlane: StringName = (
 	"https://firebase.google.com/docs/app-distribution/android/distribute-fastlane"
 )

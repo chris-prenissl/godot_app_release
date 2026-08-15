@@ -25,11 +25,6 @@ var _columns_box: VBoxContainer
 var _release_tab: PanelContainer
 var _setup_panel: _SetupPanel
 
-var _groups_row: HBoxContainer
-var _save_group_button: Button
-var _save_group_dialog: AcceptDialog
-var _save_group_name_edit: LineEdit
-
 var _columns: Dictionary = {}
 
 var _poll_timer: Timer
@@ -135,27 +130,6 @@ func _build_ui() -> void:
 	_release_selected_button.disabled = true
 	_release_selected_button.pressed.connect(_on_release_selected_pressed)
 	status_row.add_child(_release_selected_button)
-
-	_groups_row = HBoxContainer.new()
-	root.add_child(_groups_row)
-
-	_save_group_button = Button.new()
-	_save_group_button.text = AppReleaseStrings.label_save_group
-	_save_group_button.disabled = true
-	_save_group_button.pressed.connect(_on_save_group_pressed)
-	_groups_row.add_child(_save_group_button)
-
-	_save_group_dialog = AcceptDialog.new()
-	_save_group_dialog.title = AppReleaseStrings.dialog_save_group_title
-	_save_group_dialog.ok_button_text = AppReleaseStrings.dialog_save_group_ok
-	var save_group_box := VBoxContainer.new()
-	save_group_box.add_child(_label(AppReleaseStrings.label_save_group_name))
-	_save_group_name_edit = LineEdit.new()
-	_save_group_name_edit.placeholder_text = AppReleaseStrings.placeholder_group_name
-	save_group_box.add_child(_save_group_name_edit)
-	_save_group_dialog.add_child(save_group_box)
-	_save_group_dialog.confirmed.connect(_on_save_group_confirmed)
-	add_child(_save_group_dialog, false, Node.INTERNAL_MODE_BACK)
 
 	var split := VSplitContainer.new()
 	split.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -279,18 +253,60 @@ func _label(text: String) -> Label:
 
 func _reload_config() -> void:
 	_config_modified_time = _current_config_modified_time()
-	_config = AppReleaseConfig.load_project_config()
+	_config = AppReleaseConfig.load_project_config(ResourceLoader.CACHE_MODE_REPLACE)
+	_wire_config_signals()
 	_rebuild_columns()
-	_rebuild_group_chips()
 	_restore_form_state()
 	_setup_panel.refresh()
+	_update_status_for_config()
 
-	var needs_setup := _config == null or _config.enabled_targets().is_empty()
-	_open_setup_button.visible = needs_setup
+func _on_config_content_changed() -> void:
+	_wire_config_signals()
+	_rebuild_columns()
+	_restore_form_state()
+	_setup_panel.refresh()
+	_update_status_for_config()
+
+
+func _wire_config_signals() -> void:
 	if _config == null:
+		return
+	_connect_once(_config.changed, _on_config_content_changed)
+	for group in _config.release_groups:
+		if group == null:
+			continue
+		_connect_once(group.changed, _on_config_content_changed)
+		for target in group.targets:
+			if target == null:
+				continue
+			_connect_once(target.changed, _on_config_content_changed)
+
+
+static func _connect_once(source: Signal, callable: Callable) -> void:
+	if not source.is_connected(callable):
+		source.connect(callable)
+
+
+func _update_status_for_config() -> void:
+	if _config == null:
+		_open_setup_button.visible = true
 		_status_label.text = AppReleaseStrings.error_no_config
-	elif _config.enabled_targets().is_empty():
+		return
+
+	var enabled := _config.enabled_targets()
+	if enabled.is_empty():
+		_open_setup_button.visible = true
 		_status_label.text = AppReleaseStrings.error_no_targets
+		return
+
+	if _config.runnable_targets().is_empty():
+		_open_setup_button.visible = true
+		_status_label.text = AppReleaseStrings.error_targets_need_setup_format % ", ".join(
+			enabled.map(func(target: AppReleaseTarget) -> String: return target.display_label())
+		)
+		return
+
+	_open_setup_button.visible = false
 
 
 func _show_setup_tab() -> void:
@@ -308,7 +324,6 @@ func _rebuild_columns() -> void:
 		return
 	var targets := _config.enabled_targets()
 	if targets.is_empty():
-		_columns_box.add_child(_label(AppReleaseStrings.error_no_targets))
 		return
 
 	targets.sort_custom(
@@ -320,6 +335,9 @@ func _rebuild_columns() -> void:
 	for target in targets:
 		var column := _TargetColumn.new()
 		column.setup(target)
+		var config_error := target.get_configuration_error()
+		if not config_error.is_empty():
+			column.set_status(AppReleaseStrings.status_target_setup_missing_format % config_error)
 		column.fetch_requested.connect(_on_fetch_store_requested)
 		column.release_requested.connect(_on_release_pressed)
 		column.selection_toggled.connect(_on_selection_toggled)
@@ -347,81 +365,6 @@ func _rebuild_columns() -> void:
 		_fill_store_columns(store_id, _store_rows[store_id])
 
 	_update_buttons()
-
-func _rebuild_group_chips() -> void:
-	for child in _groups_row.get_children():
-		if child == _save_group_button:
-			continue
-		_groups_row.remove_child(child)
-		child.queue_free()
-
-	if _config == null:
-		return
-	for group: AppReleaseGroup in _config.release_groups:
-		var chip := HBoxContainer.new()
-
-		var recall_button := Button.new()
-		recall_button.text = group.name
-		var member_labels := PackedStringArray(_config.resolve_group_targets(group).map(
-			func(target: AppReleaseTarget) -> String: return target.display_label()
-		))
-		recall_button.tooltip_text = (
-			AppReleaseStrings.tooltip_recall_group_format % ", ".join(member_labels)
-		)
-		recall_button.pressed.connect(_on_recall_group_pressed.bind(group))
-		chip.add_child(recall_button)
-
-		var delete_button := Button.new()
-		delete_button.text = AppReleaseStrings.label_delete_group
-		delete_button.tooltip_text = AppReleaseStrings.tooltip_delete_group
-		delete_button.pressed.connect(_on_delete_group_pressed.bind(group))
-		chip.add_child(delete_button)
-
-		_groups_row.add_child(chip)
-
-
-func _on_recall_group_pressed(group: AppReleaseGroup) -> void:
-	if _config == null:
-		return
-	_selected_target_ids.clear()
-	for target in _config.resolve_group_targets(group):
-		_selected_target_ids[target.target_id()] = true
-	for target_id in _columns:
-		var column: _TargetColumn = _columns[target_id]
-		column.set_selected(_selected_target_ids.has(target_id))
-	_update_release_selected_button()
-
-
-func _on_delete_group_pressed(group: AppReleaseGroup) -> void:
-	if _config == null:
-		return
-	_config.release_groups.erase(group)
-	_config.save_to_disk()
-	_rebuild_group_chips()
-
-
-func _on_save_group_pressed() -> void:
-	if _selected_target_ids.is_empty():
-		return
-	_save_group_name_edit.text = ""
-	_save_group_dialog.popup_centered()
-	_save_group_name_edit.grab_focus()
-
-
-func _on_save_group_confirmed() -> void:
-	if _config == null or _selected_target_ids.is_empty():
-		return
-	var group_name := _save_group_name_edit.text.strip_edges()
-	if group_name.is_empty():
-		return
-
-	var group := AppReleaseGroup.new()
-	group.name = group_name
-	group.target_ids = PackedStringArray(_selected_target_ids.keys())
-	_config.release_groups.append(group)
-	_config.save_to_disk()
-	_rebuild_group_chips()
-
 
 func _restore_form_state() -> void:
 	_groups_edit.text = str(_load_setting(AppReleaseStrings.setting_last_groups, ""))
@@ -520,7 +463,6 @@ func _update_release_selected_button() -> void:
 		AppReleaseStrings.label_release_selected_format % _selected_target_ids.size()
 	)
 	_release_selected_button.disabled = _selected_target_ids.is_empty() or not _runs.is_empty()
-	_save_group_button.disabled = _selected_target_ids.is_empty() or not _runs.is_empty()
 
 func _request_release(target_ids: PackedStringArray) -> void:
 	if target_ids.is_empty() or not _runs.is_empty() or _config == null:
