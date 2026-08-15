@@ -1,0 +1,55 @@
+name: Tests
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GODOT_VERSION: "4.7.1-stable"
+
+jobs:
+  test:
+    runs-on: macos-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache Godot editor
+        id: godot-cache
+        uses: actions/cache@v4
+        with:
+          path: /tmp/godot/Godot.app
+          key: godot-${{ env.GODOT_VERSION }}-macos
+
+      - name: Download Godot editor
+        if: steps.godot-cache.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p /tmp/godot
+          curl -fsSL "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_macos.universal.zip" -o /tmp/godot/godot.zip
+          unzip -q /tmp/godot/godot.zip -d /tmp/godot
+
+      # Unpinned, unlike GODOT_VERSION/ruby-version above — homebrew-core only keeps the
+      # latest formula, so there's no clean version pin here without extra machinery
+      # (e.g. vendoring a bottle). Accepted tradeoff: a bats-core bump could in theory
+      # break CI on an unrelated day.
+      - name: Install bats-core
+        run: brew install bats-core
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+          bundler-cache: false
+
+      - name: Run test suite
+        env:
+          GODOT_BIN: /tmp/godot/Godot.app/Contents/MacOS/Godot
+        run: tests/run_all.sh
