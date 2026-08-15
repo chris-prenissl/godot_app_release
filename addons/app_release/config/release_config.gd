@@ -4,7 +4,7 @@ extends Resource
 
 @export_tool_button("Save to disk", "Save") var save_action: Callable = save_to_disk
 
-@export var targets: Array[AppReleaseTarget] = []
+## Targets live inside their group, not here — see AppReleaseGroup.targets.
 @export var release_groups: Array[AppReleaseGroup] = []
 
 @export_group("App identity")
@@ -33,7 +33,7 @@ func save_to_disk() -> void:
 		push_error("App Release: could not save %s (%s)." % [path, error_string(result)])
 		return
 
-	print("App Release: saved %s with %d target(s)." % [path, targets.size()])
+	print("App Release: saved %s with %d target(s)." % [path, all_targets().size()])
 	if Engine.is_editor_hint():
 		EditorInterface.get_resource_filesystem().scan()
 
@@ -54,17 +54,27 @@ func identity_error(platform: String) -> String:
 		return "No bundle identifier configured for platform \"%s\"." % platform
 	return ""
 
+func all_targets() -> Array[AppReleaseTarget]:
+	var result: Array[AppReleaseTarget] = []
+	for group in release_groups:
+		if group == null:
+			continue
+		for target in group.targets:
+			if target != null:
+				result.append(target)
+	return result
+
 func runnable_targets() -> Array[AppReleaseTarget]:
 	var result: Array[AppReleaseTarget] = []
-	for target in targets:
-		if target != null and target.enabled and target.get_configuration_error().is_empty():
+	for target in all_targets():
+		if target.enabled and target.get_configuration_error().is_empty():
 			result.append(target)
 	return result
 
 func enabled_targets() -> Array[AppReleaseTarget]:
 	var result: Array[AppReleaseTarget] = []
-	for target in targets:
-		if target != null and target.enabled:
+	for target in all_targets():
+		if target.enabled:
 			result.append(target)
 	return result
 
@@ -76,18 +86,10 @@ func active_store_ids() -> PackedStringArray:
 			seen.append(id)
 	return seen
 
-func resolve_group_targets(group: AppReleaseGroup) -> Array[AppReleaseTarget]:
-	var result: Array[AppReleaseTarget] = []
-	for target_id in group.target_ids:
-		var target := find_target(target_id)
-		if target != null and target.enabled:
-			result.append(target)
-	return result
-
 
 func find_target(target_id: String) -> AppReleaseTarget:
-	for target in targets:
-		if target != null and target.target_id() == target_id:
+	for target in all_targets():
+		if target.target_id() == target_id:
 			return target
 	return null
 

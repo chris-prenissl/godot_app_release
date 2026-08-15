@@ -21,6 +21,11 @@ class _FixtureBacked:
 		target.export_options_plist = "tests/fixtures/ios_basic/ExportOptions.plist"
 		return target
 
+	func _group_of(targets: Array[AppReleaseTarget]) -> AppReleaseGroup:
+		var group := AppReleaseGroup.new()
+		group.targets = targets
+		return group
+
 
 class TestBundleIdentifierFor:
 	extends GutTest
@@ -63,7 +68,7 @@ class TestIdentityError:
 
 	func test_android_error_message() -> void:
 		var config := AppReleaseConfig.new()
-		
+
 		assert_eq(
 			config.identity_error(AppReleaseStrings.platform_android),
 			"No Android package name set in release_config.tres."
@@ -77,6 +82,39 @@ class TestIdentityError:
 		)
 
 
+class TestAllTargets:
+	extends GutTest
+
+	func test_flattens_targets_across_groups_in_order() -> void:
+		var target_a := AppReleaseTarget.new()
+		var target_b := AppReleaseTarget.new()
+		var target_c := AppReleaseTarget.new()
+
+		var group_a := AppReleaseGroup.new()
+		group_a.targets = [target_a, target_b]
+		var group_b := AppReleaseGroup.new()
+		group_b.targets = [target_c]
+
+		var config := AppReleaseConfig.new()
+		config.release_groups = [group_a, group_b]
+
+		assert_eq(config.all_targets(), [target_a, target_b, target_c])
+
+	func test_skips_null_groups() -> void:
+		var target := AppReleaseTarget.new()
+		var group := AppReleaseGroup.new()
+		group.targets = [target]
+
+		var config := AppReleaseConfig.new()
+		config.release_groups = [null, group]
+
+		assert_eq(config.all_targets(), [target])
+
+	func test_returns_empty_array_for_config_with_no_groups() -> void:
+		var config := AppReleaseConfig.new()
+		assert_true(config.all_targets().is_empty())
+
+
 class TestEnabledTargets:
 	extends GutTest
 
@@ -86,8 +124,11 @@ class TestEnabledTargets:
 		var disabled_target := AppReleaseTarget.new()
 		disabled_target.enabled = false
 
+		var group := AppReleaseGroup.new()
+		group.targets = [enabled_target, disabled_target]
+
 		var config := AppReleaseConfig.new()
-		config.targets = [enabled_target, disabled_target]
+		config.release_groups = [group]
 
 		var result := config.enabled_targets()
 		assert_eq(result.size(), 1)
@@ -102,8 +143,11 @@ class TestFindTarget:
 		target.store = AppReleaseTarget.Store.TESTFLIGHT
 		target.export_preset = "iOS"
 
+		var group := AppReleaseGroup.new()
+		group.targets = [target]
+
 		var config := AppReleaseConfig.new()
-		config.targets = [target]
+		config.release_groups = [group]
 
 		assert_eq(config.find_target("testflight_ios"), target)
 
@@ -126,8 +170,11 @@ class TestActiveStoreIds:
 		target_c.store = AppReleaseTarget.Store.PLAY
 		target_c.enabled = true
 
+		var group := AppReleaseGroup.new()
+		group.targets = [target_a, target_b, target_c]
+
 		var config := AppReleaseConfig.new()
-		config.targets = [target_a, target_b, target_c]
+		config.release_groups = [group]
 
 		var store_ids := config.active_store_ids()
 		assert_eq(store_ids.size(), 2)
@@ -150,63 +197,11 @@ class TestRunnableTargets:
 		disabled_target.enabled = false
 
 		var config := AppReleaseConfig.new()
-		config.targets = [valid_target, invalid_target, disabled_target]
+		config.release_groups = [_group_of([valid_target, invalid_target, disabled_target])]
 
 		var result := config.runnable_targets()
 		assert_eq(result.size(), 1)
 		assert_eq(result[0], valid_target)
-
-
-class TestResolveGroupTargets:
-	extends GutTest
-
-	func test_resolves_ids_in_the_groups_own_order() -> void:
-		var target_a := AppReleaseTarget.new()
-		target_a.store = AppReleaseTarget.Store.TESTFLIGHT
-		target_a.export_preset = "iOS"
-		var target_b := AppReleaseTarget.new()
-		target_b.store = AppReleaseTarget.Store.FIREBASE
-		target_b.export_preset = "Android"
-
-		var config := AppReleaseConfig.new()
-		config.targets = [target_a, target_b]
-
-		var group := AppReleaseGroup.new()
-		group.target_ids = [target_b.target_id(), target_a.target_id()]
-
-		var resolved := config.resolve_group_targets(group)
-		assert_eq(resolved, [target_b, target_a])
-
-	func test_drops_ids_for_targets_that_no_longer_exist() -> void:
-		var target := AppReleaseTarget.new()
-		target.store = AppReleaseTarget.Store.TESTFLIGHT
-		target.export_preset = "iOS"
-
-		var config := AppReleaseConfig.new()
-		config.targets = [target]
-
-		var group := AppReleaseGroup.new()
-		group.target_ids = [target.target_id(), "no_such_target"]
-
-		assert_eq(config.resolve_group_targets(group), [target])
-
-	func test_drops_ids_for_targets_that_are_disabled() -> void:
-		var target := AppReleaseTarget.new()
-		target.store = AppReleaseTarget.Store.TESTFLIGHT
-		target.export_preset = "iOS"
-		target.enabled = false
-
-		var config := AppReleaseConfig.new()
-		config.targets = [target]
-
-		var group := AppReleaseGroup.new()
-		group.target_ids = [target.target_id()]
-
-		assert_true(config.resolve_group_targets(group).is_empty())
-
-	func test_returns_empty_array_for_a_group_with_no_target_ids() -> void:
-		var config := AppReleaseConfig.new()
-		assert_true(config.resolve_group_targets(AppReleaseGroup.new()).is_empty())
 
 
 class TestLoadProjectConfig:

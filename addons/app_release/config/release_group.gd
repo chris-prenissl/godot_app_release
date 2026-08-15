@@ -7,4 +7,12 @@ extends Resource
 		name = value
 		resource_name = value
 
-@export var target_ids: PackedStringArray = []
+@export var targets: Array[AppReleaseTarget] = []
+
+
+func enabled_targets() -> Array[AppReleaseTarget]:
+	var result: Array[AppReleaseTarget] = []
+	for target in targets:
+		if target != null and target.enabled:
+			result.append(target)
+	return result
