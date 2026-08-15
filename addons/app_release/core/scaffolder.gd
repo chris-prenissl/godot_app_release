@@ -54,7 +54,7 @@ static func create_default_config() -> AppReleaseConfig:
 			AppReleaseStrings.config_resource_path, error_string(result),
 		])
 		return null
-	return AppReleaseConfig.load_project_config()
+	return config
 
 
 static func build_default_groups() -> Array[AppReleaseGroup]:

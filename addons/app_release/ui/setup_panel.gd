@@ -110,12 +110,12 @@ func _on_create_config_pressed() -> void:
 			AppReleaseStrings.config_resource_path
 		), true)
 		return
-	EditorInterface.get_resource_filesystem().scan()
 	_set_message("Created %s with %d target(s). Open it and check each target's export preset." % [
 		AppReleaseStrings.config_resource_path, config.all_targets().size(),
 	])
 	refresh()
 	config_changed.emit()
+	EditorInterface.get_resource_filesystem().scan()
 
 
 func _on_open_config_pressed() -> void:
@@ -132,7 +132,6 @@ func _on_scaffold_pressed() -> void:
 	var result := AppReleaseScaffolder.scaffold_fastlane()
 	var created: PackedStringArray = result["created"]
 	var skipped: PackedStringArray = result["skipped"]
-	EditorInterface.get_resource_filesystem().scan()
 
 	_scaffold_summary = ""
 	if not created.is_empty():
@@ -147,12 +146,14 @@ func _on_scaffold_pressed() -> void:
 			_scaffold_summary + "Could not start bundle install — is Ruby installed?", true
 		)
 		refresh()
+		EditorInterface.get_resource_filesystem().scan()
 		return
 
 	_scripts_button.disabled = true
 	_set_message(
 		_scaffold_summary + "Installing Ruby gems (bundle install), this can take a few minutes..."
 	)
+	EditorInterface.get_resource_filesystem().scan()
 
 
 func _on_install_finished(succeeded: bool) -> void:
