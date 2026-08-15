@@ -13,7 +13,6 @@ var _version_edit: LineEdit
 var _build_edit: SpinBox
 var _notes_edit: TextEdit
 var _notes_hint: Label
-var _debug_check: CheckBox
 var _status_label: Label
 var _open_setup_button: Button
 var _stop_button: Button
@@ -202,12 +201,6 @@ func _build_form() -> Control:
 	side_box.custom_minimum_size = Vector2(220, 0)
 	top.add_child(side_box)
 
-	_debug_check = CheckBox.new()
-	_debug_check.text = AppReleaseStrings.label_debug_build
-	_debug_check.tooltip_text = AppReleaseStrings.tooltip_debug
-	_debug_check.toggled.connect(_on_debug_toggled)
-	side_box.add_child(_debug_check)
-
 	_stop_button = Button.new()
 	_stop_button.text = AppReleaseStrings.label_stop
 	_stop_button.disabled = true
@@ -310,7 +303,7 @@ func _rebuild_columns() -> void:
 		box.release_requested.connect(_on_release_pressed)
 		box.release_group_requested.connect(_on_release_group_pressed.bind(group))
 		box.ci_command_copied.connect(_on_ci_command_copied)
-		box.groups_changed.connect(_update_ci_commands)
+		box.settings_changed.connect(_update_ci_commands)
 		for target_id: String in box.columns:
 			_columns[target_id] = box.columns[target_id]
 		_group_boxes[group] = box
@@ -332,9 +325,6 @@ func _rebuild_columns() -> void:
 
 func _restore_form_state() -> void:
 	_notes_edit.text = str(_load_setting(AppReleaseStrings.setting_last_notes, ""))
-	_debug_check.set_pressed_no_signal(
-		bool(_load_setting(AppReleaseStrings.setting_last_debug, false))
-	)
 
 	if _config == null:
 		return
@@ -383,7 +373,7 @@ func _ci_command_for(target: AppReleaseTarget) -> String:
 	]
 	if not target.test_groups.is_empty() and target.supports_tester_groups:
 		arguments.append("--groups \"%s\"" % target.test_groups)
-	if _debug_check.button_pressed and target.allow_debug_build:
+	if target.debug_build:
 		arguments.append("--debug")
 
 	var run_env_relative_path := "%s/%s" % [
@@ -475,7 +465,7 @@ func _release_confirm_text(runnable: Array[AppReleaseTarget], skipped: Array[Dic
 
 
 func _target_summary_lines(target: AppReleaseTarget) -> PackedStringArray:
-	var build_type := "debug" if _debug_check.button_pressed else "release"
+	var build_type := "debug" if target.debug_build else "release"
 	var lines: PackedStringArray = [
 		"Target:     %s" % target.display_label(),
 		"Preset:     %s [%s]" % [target.export_preset, target.platform],
@@ -510,17 +500,21 @@ func _on_release_confirmed() -> void:
 	var build := int(_build_edit.value)
 	var timestamp := Time.get_datetime_string_from_system().replace(":", "-")
 	var notes_file := AppReleaseRunContext.write_notes_file(_notes_edit.text, timestamp)
-	var debug_build := _debug_check.button_pressed
 
-	if not _runner.start(_config, targets, version, build, notes_file, debug_build):
+	if not _runner.start(_config, targets, version, build, notes_file):
 		return
 
-	var build_type := "debug" if debug_build else "release"
 	if targets.size() == 1:
+		var build_type := "debug" if targets[0].debug_build else "release"
 		_status_label.text = AppReleaseStrings.status_running_format % [
 			targets[0].display_label(), build_type, _runner.pid_for(targets[0].target_id()),
 		]
 	else:
+		var debug_count := targets.filter(func(t: AppReleaseTarget) -> bool: return t.debug_build).size()
+		var build_type := (
+			"debug" if debug_count == targets.size()
+			else ("release" if debug_count == 0 else "mixed")
+		)
 		_status_label.text = AppReleaseStrings.status_running_batch_format % [
 			targets.size(), build_type,
 		]
@@ -529,11 +523,6 @@ func _on_release_confirmed() -> void:
 
 func _on_stop_pressed() -> void:
 	_runner.stop()
-
-
-func _on_debug_toggled(pressed: bool) -> void:
-	_store_setting(AppReleaseStrings.setting_last_debug, pressed)
-	_update_buttons()
 
 
 func _append_log(text: String, label: String = "") -> void:
@@ -549,7 +538,7 @@ func _update_buttons() -> void:
 	var ios_supported := AppReleaseProcess.is_macos()
 	for target_id in _columns:
 		var column: _TargetColumn = _columns[target_id]
-		column.update_buttons(running, _debug_check.button_pressed, ios_supported)
+		column.update_buttons(running, ios_supported)
 
 	_update_group_release_buttons()
 	_update_ci_commands()

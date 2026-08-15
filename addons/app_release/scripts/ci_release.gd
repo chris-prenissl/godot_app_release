@@ -125,10 +125,8 @@ func _run(config: AppReleaseConfig, options: Dictionary) -> int:
 			_fail("--notes-file not found: %s" % notes_file)
 			return _EXIT_USAGE
 
-	var debug_build := options.has("debug")
-
 	var write_result := AppReleaseRunContext.write_run_env(
-		config, target, version, build, notes_file, debug_build, str(options.get("groups", ""))
+		config, target, version, build, notes_file, str(options.get("groups", "")), options.has("debug")
 	)
 	if write_result != OK:
 		_fail("could not write run.env (%s)." % error_string(write_result))

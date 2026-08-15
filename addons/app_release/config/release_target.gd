@@ -78,7 +78,10 @@ const RELEASE_KIND_STORE: StringName = "store"
 ## Blank falls back to the preset's own `export_path`.
 @export var artifact_path: String = ""
 
-@export var allow_debug_build: bool = true
+## Build this target debug instead of release on its next run. Editable from the
+## Release panel's own column for this target, or here. Never available for a
+## production store — see [constant PRODUCTION_STORES].
+@export var debug_build: bool = false
 @export var supports_tester_groups: bool = true
 ## Comma-separated tester group aliases as defined in Firebase App Distribution /
 ## App Store Connect. Editable from the Release panel's own column for this target, or
@@ -213,7 +216,7 @@ func _validate_property(property: Dictionary) -> void:
 			property["hint"] = PROPERTY_HINT_ENUM
 			property["hint_string"] = PLAY_TRACK_HINT
 			_set_visible(property, store == Store.PLAY)
-		&"allow_debug_build", &"supports_tester_groups":
+		&"debug_build", &"supports_tester_groups":
 			_set_visible(property, not store in PRODUCTION_STORES)
 		&"test_groups":
 			_set_visible(property, supports_tester_groups)
@@ -295,5 +298,5 @@ func _sync_from_store() -> void:
 	if store == Store.PLAY and play_track.is_empty():
 		play_track = "internal"
 	if store in PRODUCTION_STORES:
-		allow_debug_build = false
+		debug_build = false
 		supports_tester_groups = false

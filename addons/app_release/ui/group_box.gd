@@ -10,7 +10,7 @@ signal fetch_requested(store_id: String)
 signal release_requested(target_id: String)
 signal release_group_requested()
 signal ci_command_copied(target_label: String)
-signal groups_changed()
+signal settings_changed()
 
 var group: AppReleaseGroup
 var columns: Dictionary = {}
@@ -49,7 +49,7 @@ func setup(release_group: AppReleaseGroup, targets: Array[AppReleaseTarget]) -> 
 		column.ci_command_copied.connect(
 			func(target_label: String) -> void: ci_command_copied.emit(target_label)
 		)
-		column.groups_changed.connect(func() -> void: groups_changed.emit())
+		column.settings_changed.connect(func() -> void: settings_changed.emit())
 		columns[target.target_id()] = column
 		built.append(column)
 

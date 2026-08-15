@@ -104,7 +104,6 @@ const env_ios_skip_build_processing_wait: StringName = "IOS_SKIP_BUILD_PROCESSIN
 
 # --- editor settings keys ------------------------------------------------------
 const setting_last_notes: StringName = "app_release/last_notes"
-const setting_last_debug: StringName = "app_release/last_debug"
 
 # --- ui ------------------------------------------------------------------------
 const plugin_screen_name: StringName = "Release"

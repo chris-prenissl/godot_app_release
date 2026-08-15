@@ -41,7 +41,7 @@ func running_label(target_id: String) -> String:
 
 func start(
 	config: AppReleaseConfig, targets: Array[AppReleaseTarget], version: String, build: int,
-	notes_file: String, debug_build: bool
+	notes_file: String
 ) -> bool:
 	if config == null or targets.is_empty():
 		return false
@@ -58,7 +58,7 @@ func start(
 
 	for target in targets:
 		if AppReleaseRunContext.write_run_env(
-			_config, target, version, build, notes_file, debug_build
+			_config, target, version, build, notes_file
 		) != OK:
 			status_changed.emit(AppReleaseStrings.error_start_failed)
 			return false

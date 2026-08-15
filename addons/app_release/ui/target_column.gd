@@ -4,7 +4,7 @@ extends VBoxContainer
 signal fetch_requested(store_id: String)
 signal release_requested(target_id: String)
 signal ci_command_copied(target_label: String)
-signal groups_changed()
+signal settings_changed()
 
 var target: AppReleaseTarget
 
@@ -12,6 +12,7 @@ var _tree: Tree
 var _status: Label
 var _fetch_button: Button
 var _groups_edit: LineEdit
+var _debug_check: CheckBox
 var _release_button: Button
 var _ci_command_label: Label
 var _ci_command_edit: LineEdit
@@ -73,6 +74,14 @@ func setup(release_target: AppReleaseTarget) -> void:
 		_groups_edit.text_changed.connect(_on_groups_text_changed)
 		add_child(_groups_edit)
 
+	if not target.store in AppReleaseTarget.PRODUCTION_STORES:
+		_debug_check = CheckBox.new()
+		_debug_check.text = AppReleaseStrings.label_debug_build
+		_debug_check.tooltip_text = AppReleaseStrings.tooltip_debug
+		_debug_check.set_pressed_no_signal(target.debug_build)
+		_debug_check.toggled.connect(_on_debug_toggled)
+		add_child(_debug_check)
+
 	_release_button = Button.new()
 	_release_button.text = AppReleaseStrings.label_release_to_format % target.display_label()
 	_release_button.pressed.connect(func() -> void: release_requested.emit(target.target_id()))
@@ -114,13 +123,10 @@ func _on_copy_ci_pressed() -> void:
 	ci_command_copied.emit(target.display_label())
 
 
-func update_buttons(release_running: bool, debug_build: bool, ios_supported: bool) -> void:
+func update_buttons(release_running: bool, ios_supported: bool) -> void:
 	var blocked := release_running
 	var reason := ""
 
-	if not blocked and debug_build and not target.allow_debug_build:
-		blocked = true
-		reason = AppReleaseStrings.tooltip_debug
 	if not blocked and target.is_ios() and not ios_supported:
 		blocked = true
 		reason = AppReleaseStrings.tooltip_ios_needs_macos
@@ -128,6 +134,8 @@ func update_buttons(release_running: bool, debug_build: bool, ios_supported: boo
 	_release_button.disabled = blocked
 	_release_button.tooltip_text = reason
 	_fetch_button.disabled = release_running
+	if _debug_check != null:
+		_debug_check.disabled = release_running
 
 
 func set_status(text: String) -> void:
@@ -136,7 +144,12 @@ func set_status(text: String) -> void:
 
 func _on_groups_text_changed(text: String) -> void:
 	target.test_groups = text.strip_edges()
-	groups_changed.emit()
+	settings_changed.emit()
+
+
+func _on_debug_toggled(pressed: bool) -> void:
+	target.debug_build = pressed
+	settings_changed.emit()
 
 
 func fill(rows: Array) -> void:
