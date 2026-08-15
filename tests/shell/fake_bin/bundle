@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+echo "bundle $*" >> "$FAKE_BIN_LOG"
+exit 0

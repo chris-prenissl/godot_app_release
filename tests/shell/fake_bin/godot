@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+echo "godot $*" >> "$FAKE_BIN_LOG"
+
+last="${@: -1}"
+mkdir -p "$(dirname "$last")"
+echo "fake artifact" > "$last"
+exit 0

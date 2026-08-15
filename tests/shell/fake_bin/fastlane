@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+echo "fastlane $*" >> "$FAKE_BIN_LOG"
+exit 0

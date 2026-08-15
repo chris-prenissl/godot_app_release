@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+echo "xcodebuild $*" >> "$FAKE_BIN_LOG"
+
+case "$1" in
+	archive)
+		exit 0
+		;;
+	-exportArchive)
+		prev=""
+		for arg in "$@"; do
+			if [ "$prev" = "-exportPath" ]; then
+				mkdir -p "$arg"
+				echo "fake ipa contents" > "$arg/App Release.ipa"
+			fi
+			prev="$arg"
+		done
+		exit 0
+		;;
+	*)
+		exit 0
+		;;
+esac

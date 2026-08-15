@@ -3,22 +3,24 @@
 
 require "json"
 
-source, out_path = ARGV
-unless source && out_path
-  abort "usage: list_releases.rb <testflight|app_store|firebase|play> <out.json>"
-end
-
 PROJECT_ROOT = Dir.pwd
 WORK_DIR = File.join(PROJECT_ROOT, ".release_tools")
 
-begin
-  ENV["BUNDLE_GEMFILE"] ||= File.join(PROJECT_ROOT, "Gemfile")
-  require "bundler/setup"
-  require "dotenv"
-  Dotenv.load(File.join(PROJECT_ROOT, "fastlane", ".env"))
-rescue Exception => e # rubocop:disable Lint/RescueException
-  File.write(out_path, JSON.generate({ "error" => "setup failed: #{e.class}: #{e.message}" }))
-  exit 1
+if $PROGRAM_NAME == __FILE__
+  source, out_path = ARGV
+  unless source && out_path
+    abort "usage: list_releases.rb <testflight|app_store|firebase|play> <out.json>"
+  end
+
+  begin
+    ENV["BUNDLE_GEMFILE"] ||= File.join(PROJECT_ROOT, "Gemfile")
+    require "bundler/setup"
+    require "dotenv"
+    Dotenv.load(File.join(PROJECT_ROOT, "fastlane", ".env"))
+  rescue Exception => e # rubocop:disable Lint/RescueException
+    File.write(out_path, JSON.generate({ "error" => "setup failed: #{e.class}: #{e.message}" }))
+    exit 1
+  end
 end
 
 def run_config
@@ -76,19 +78,32 @@ def connect_api_app(source)
   app
 end
 
+def map_testflight_build(b)
+  {
+    "date" => b.uploaded_date.to_s,
+    "version" => b.pre_release_version&.version.to_s,
+    "build" => b.version.to_s,
+    "track" => "testflight",
+    "info" => "TestFlight",
+    "status" => b.processing_state.to_s.downcase
+  }
+end
+
 def testflight_releases
   app = connect_api_app("testflight")
   builds = app.get_builds(includes: "preReleaseVersion", sort: "-uploadedDate", limit: 50)
-  builds.map do |b|
-    {
-      "date" => b.uploaded_date.to_s,
-      "version" => b.pre_release_version&.version.to_s,
-      "build" => b.version.to_s,
-      "track" => "testflight",
-      "info" => "TestFlight",
-      "status" => b.processing_state.to_s.downcase
-    }
-  end
+  builds.map { |b| map_testflight_build(b) }
+end
+
+def map_app_store_version(v)
+  {
+    "date" => v.created_date.to_s,
+    "version" => v.version_string.to_s,
+    "build" => v.build&.version.to_s,
+    "track" => "app_store",
+    "info" => "App Store",
+    "status" => v.app_store_state.to_s.downcase
+  }
 end
 
 def app_store_releases
@@ -97,16 +112,7 @@ def app_store_releases
     includes: "build",
     filter: { platform: "IOS" }
   )
-  versions.first(50).map do |v|
-    {
-      "date" => v.created_date.to_s,
-      "version" => v.version_string.to_s,
-      "build" => v.build&.version.to_s,
-      "track" => "app_store",
-      "info" => "App Store",
-      "status" => v.app_store_state.to_s.downcase
-    }
-  end
+  versions.first(50).map { |v| map_app_store_version(v) }
 end
 
 FIREBASE_CLI_CLIENT_ID = ENV.fetch(
@@ -168,7 +174,11 @@ def firebase_releases
   end
   raise "Firebase API #{res.code}: #{res.body[0, 300]}" unless res.code == "200"
 
-  (JSON.parse(res.body)["releases"] || []).map do |r|
+  map_firebase_releases(res.body)
+end
+
+def map_firebase_releases(response_body)
+  (JSON.parse(response_body)["releases"] || []).map do |r|
     {
       "date" => r["createTime"].to_s,
       "version" => r["displayVersion"].to_s,
@@ -196,6 +206,10 @@ def play_releases
   rescue StandardError
   end
 
+  map_play_tracks(tracks)
+end
+
+def map_play_tracks(tracks)
   rows = []
   tracks.each do |t|
     (t.releases || []).each do |r|
@@ -214,19 +228,21 @@ def play_releases
   rows
 end
 
-result =
-  begin
-    releases =
-      case source
-      when "testflight" then testflight_releases
-      when "app_store" then app_store_releases
-      when "firebase" then firebase_releases
-      when "play" then play_releases
-      else raise "unknown store: #{source}"
-      end
-    { "releases" => releases }
-  rescue Exception => e # rubocop:disable Lint/RescueException
-    { "error" => "#{e.class}: #{e.message}", "backtrace" => (e.backtrace || [])[0, 3] }
-  end
+if $PROGRAM_NAME == __FILE__
+  result =
+    begin
+      releases =
+        case source
+        when "testflight" then testflight_releases
+        when "app_store" then app_store_releases
+        when "firebase" then firebase_releases
+        when "play" then play_releases
+        else raise "unknown store: #{source}"
+        end
+      { "releases" => releases }
+    rescue Exception => e # rubocop:disable Lint/RescueException
+      { "error" => "#{e.class}: #{e.message}", "backtrace" => (e.backtrace || [])[0, 3] }
+    end
 
-File.write(out_path, JSON.pretty_generate(result))
+  File.write(out_path, JSON.pretty_generate(result))
+end

@@ -2,13 +2,18 @@
 	"stores": {
 		"testflight": {
 			"platform": "ios",
-			"bundle_identifier": "com.example.apprelease",
+			"bundle_identifier": "com.example.apprelease.ios",
 			"export_preset": "iOS"
 		},
 		"app_store": {
 			"platform": "ios",
-			"bundle_identifier": "com.example.apprelease",
+			"bundle_identifier": "com.example.apprelease.ios",
 			"export_preset": "iOS"
+		},
+		"play": {
+			"platform": "android",
+			"bundle_identifier": "com.example.apprelease.android",
+			"export_preset": "Android"
 		}
 	}
 }
