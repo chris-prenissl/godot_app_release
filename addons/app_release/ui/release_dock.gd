@@ -15,6 +15,7 @@ var _notes_edit: TextEdit
 var _notes_hint: Label
 var _status_label: Label
 var _open_setup_button: Button
+var _edit_config_button: Button
 var _stop_button: Button
 var _log_view: TextEdit
 var _columns_box: HBoxContainer
@@ -113,6 +114,13 @@ func _build_ui() -> void:
 	_open_setup_button.visible = false
 	_open_setup_button.pressed.connect(_show_setup_tab)
 	status_row.add_child(_open_setup_button)
+
+	_edit_config_button = Button.new()
+	_edit_config_button.text = "Edit config"
+	_edit_config_button.tooltip_text = "Open release_config.tres in the Inspector."
+	_edit_config_button.visible = false
+	_edit_config_button.pressed.connect(_on_edit_config_pressed)
+	status_row.add_child(_edit_config_button)
 
 	var split := VSplitContainer.new()
 	split.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -235,6 +243,8 @@ func _apply_config_content_changed() -> void:
 
 
 func _update_status_for_config() -> void:
+	_edit_config_button.visible = _config != null
+
 	if _config == null:
 		_open_setup_button.visible = true
 		_status_label.text = AppReleaseStrings.error_no_config
@@ -258,6 +268,12 @@ func _update_status_for_config() -> void:
 
 func _show_setup_tab() -> void:
 	current_tab = _setup_tab_index
+
+
+func _on_edit_config_pressed() -> void:
+	if _config == null:
+		return
+	EditorInterface.edit_resource(_config)
 
 
 ## One [_GroupBox] per group, skipping empty/null groups, chained into a resizable row.
