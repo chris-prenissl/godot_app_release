@@ -9,6 +9,10 @@ The work is mainly done by Godot's headless exporter and [fastlane](https://fast
 
 ---
 
+| Setup | Release |
+|---|---|
+| ![Setup tab](media/screenshot-setup.png) | ![Release tab](media/screenshot-release.png) |
+
 ## What it does
 
 - One click per destination: patch the version, export the preset, upload the artifact.
@@ -123,6 +127,7 @@ Each target is its own resource, so you can add, duplicate and remove them freel
 | `fastlane_lane` | Lane invoked as `fastlane <platform> <lane>` |
 | `play_track` | Google Play track — `internal`, `alpha`, `beta`, `production` |
 | `artifact_path` | What gets uploaded. Blank uses the preset's own export path |
+| `skip_build_processing_wait` | iOS only. Skip waiting for App Store Connect to finish processing the build after upload to TestFlight |
 
 ### Build modes
 
