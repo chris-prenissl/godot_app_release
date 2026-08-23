@@ -1,5 +1,7 @@
 # App Release
 
+## Overview
+
 A Godot 4 editor plugin that exports your project for mobile and ships it — to **TestFlight**, the
 **App Store**, **Firebase App Distribution** and **Google Play** — without leaving the editor.
 
@@ -7,11 +9,13 @@ It adds a **Release** tab next to 2D/3D/Script with one column per destination: 
 recent releases on top, a Release button underneath, and a live build log at the bottom.
 The work is mainly done by Godot's headless exporter and [fastlane](https://fastlane.tools).
 
----
-
 | Setup | Release |
 |---|---|
 | ![Setup tab](media/screenshot-setup.png) | ![Release tab](media/screenshot-release.png) |
+
+## Technologies
+
+_Godot_ | _GDScript_ | _Fastlane_ | _Shell_ | _Plugin_ | _App_Store_Connect_API_ | _Firebase_App_Distribution_ | _Google_Play_API_ 
 
 ## What it does
 
