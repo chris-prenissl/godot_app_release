@@ -9,6 +9,8 @@ It adds a **Release** tab next to 2D/3D/Script with one column per destination: 
 recent releases on top, a Release button underneath, and a live build log at the bottom.
 The work is mainly done by Godot's headless exporter and [fastlane](https://fastlane.tools).
 
+Released in [Godot Asset Store](https://store.godotengine.org/asset/christoph-prenissl/app-release/)
+
 | Setup | Release |
 |---|---|
 | ![Setup tab](media/screenshot-setup.png) | ![Release tab](media/screenshot-release.png) |
