@@ -147,6 +147,7 @@ func _build_ui() -> void:
 	_runner = AppReleaseBatchRunner.new(self)
 	_runner.log_appended.connect(_append_log)
 	_runner.log_cleared.connect(func() -> void: _log_tabs.clear_all())
+	_runner.batch_queued.connect(_on_batch_queued)
 	_runner.status_changed.connect(func(text: String) -> void: _status_label.text = text)
 	_runner.runs_changed.connect(_update_buttons)
 
@@ -188,7 +189,7 @@ func _build_form() -> Control:
 	top.add_child(notes_box)
 	notes_box.add_child(_label(AppReleaseStrings.label_release_notes))
 	_notes_edit = TextEdit.new()
-	_notes_edit.custom_minimum_size = Vector2(0, 84)
+	_notes_edit.custom_minimum_size = Vector2(0, 240)
 	_notes_edit.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_notes_edit.placeholder_text = AppReleaseStrings.placeholder_notes
 	_notes_edit.text_changed.connect(
@@ -273,8 +274,6 @@ func _on_edit_config_pressed() -> void:
 		return
 	EditorInterface.edit_resource(_config)
 
-
-## One [_GroupBox] per group, skipping empty/null groups, chained into a resizable row.
 func _rebuild_columns() -> void:
 	for child in _columns_box.get_children():
 		_columns_box.remove_child(child)
@@ -530,6 +529,17 @@ func _append_log(text: String, target_id: String = "", label: String = "") -> vo
 	_log_tabs.append(target_id, label, text)
 
 
+func _on_batch_queued(target_ids: PackedStringArray) -> void:
+	if _config == null:
+		return
+	for target_id in target_ids:
+		var target := _config.find_target(target_id)
+		if target != null:
+			_log_tabs.set_waiting(
+				target_id, target.display_label(), AppReleaseStrings.log_waiting_for_turn
+			)
+
+
 func _update_buttons() -> void:
 	var running := _runner.is_running()
 	_stop_button.disabled = not running
@@ -561,7 +571,6 @@ func _on_store_fetched(store_id: String, rows: Array) -> void:
 
 
 func _on_fetch_failed(store_id: String, error: String) -> void:
-	_append_log(AppReleaseStrings.log_fetch_failed_format % [store_id, error])
 	push_error("App Release: release list (%s): %s" % [store_id, error])
 
 

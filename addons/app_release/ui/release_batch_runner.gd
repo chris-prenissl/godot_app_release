@@ -4,6 +4,7 @@ extends RefCounted
 
 signal log_appended(text: String, target_id: String, label: String)
 signal log_cleared()
+signal batch_queued(target_ids: PackedStringArray)
 signal status_changed(text: String)
 signal runs_changed()
 
@@ -95,6 +96,7 @@ func launch(config: AppReleaseConfig, targets: Array[AppReleaseTarget]) -> bool:
 	for target in targets:
 		ids.append(target.target_id())
 	_plan.open(_batch_id, ids)
+	batch_queued.emit(ids)
 
 	_spawn_next_batch_export(_batch_id)
 	_poll_timer.start()
@@ -154,10 +156,9 @@ func _start_batch_uploads(batch_id: String) -> void:
 
 
 func _abort_batch(batch_id: String) -> void:
-	var remaining := _plan.abort(batch_id)
-	if not remaining.is_empty():
+	for target_id in _plan.abort(batch_id):
 		log_appended.emit(
-			"Release group stopped: %d target(s) not started.\n" % remaining.size(), "", ""
+			AppReleaseStrings.log_not_started, target_id, running_label(target_id)
 		)
 
 
@@ -283,15 +284,14 @@ func _read_exit_code(run: AppReleaseRun) -> Variant:
 func _finish_run(run: AppReleaseRun, status: String, outcome: Outcome) -> void:
 	_runs.erase(run.target_id)
 	status_changed.emit(status)
+
+	if run.phase == AppReleaseRun.Phase.EXPORT and not _stopping:
+		if outcome == Outcome.FAILED:
+			_abort_batch(run.batch_id)
+		else:
+			_spawn_next_batch_export(run.batch_id)
+
 	runs_changed.emit()
-
-	if run.phase != AppReleaseRun.Phase.EXPORT or _stopping:
-		return
-
-	if outcome == Outcome.FAILED:
-		_abort_batch(run.batch_id)
-	else:
-		_spawn_next_batch_export(run.batch_id)
 
 
 func _read_new_log_output(run: AppReleaseRun) -> void:

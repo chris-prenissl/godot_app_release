@@ -58,8 +58,6 @@ class TestDropTarget:
 		assert_eq(Array(plan.pending_exports("b")), ["ios", "steam"])
 		assert_eq(Array(plan.upload_targets("b")), ["ios", "steam"])
 
-	## Cancelling a target mid-export: it is already out of the queue, but it must still
-	## be kept out of the upload stage.
 	func test_target_dropped_after_its_export_started_is_still_excluded_from_uploads() -> void:
 		var plan := AppReleaseBatchPlan.new()
 		plan.open("b", PackedStringArray(["ios", "android"]))

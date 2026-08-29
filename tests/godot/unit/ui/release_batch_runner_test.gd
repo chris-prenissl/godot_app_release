@@ -1,8 +1,5 @@
 extends GutTest
 
-## Exercises the scheduling half of the runner through [method AppReleaseBatchRunner.launch],
-## with the process spawn and kill replaced by recording hooks — no release script is started
-## and no export preset is touched.
 
 const _Phase := AppReleaseRun.Phase
 const _Outcome := AppReleaseBatchRunner.Outcome
@@ -55,7 +52,6 @@ func _record_spawn(run: AppReleaseRun) -> int:
 	return _next_pid
 
 
-## Launch and immediately silence the poll timer — polling would look at the fake pids.
 func _launch(targets: Array[AppReleaseTarget]) -> bool:
 	var started := _runner.launch(_config, targets)
 	_runner._poll_timer.stop()
@@ -75,8 +71,6 @@ func _spawned(phase: AppReleaseRun.Phase) -> Array:
 func _id(index: int) -> String:
 	return _targets[index].target_id()
 
-
-# --- serial exports ------------------------------------------------------------------
 
 func test_a_batch_starts_exactly_one_export() -> void:
 	_launch(_targets)
@@ -120,8 +114,6 @@ func test_a_single_target_runs_one_combined_process() -> void:
 	assert_eq(_spawns.size(), 1)
 	assert_eq(_spawns[0]["phase"], _Phase.SINGLE)
 
-
-# --- stopping one target -------------------------------------------------------------
 
 func test_stopping_a_target_kills_only_that_process() -> void:
 	_launch(_targets)
@@ -177,8 +169,6 @@ func test_stopping_a_target_reports_it_on_that_target_s_own_stream() -> void:
 	assert_eq(parameters[2], "Alpha")
 
 
-## The old code suppressed the label whenever a single run was active, which left the
-## output unattributable.
 func test_a_lone_run_still_reports_its_target_id() -> void:
 	_launch([_targets[0]] as Array[AppReleaseTarget])
 	watch_signals(_runner)
@@ -187,8 +177,6 @@ func test_a_lone_run_still_reports_its_target_id() -> void:
 	var parameters: Array = get_signal_parameters(_runner, "log_appended")
 	assert_eq(parameters[1], _id(0))
 
-
-# --- stopping everything -------------------------------------------------------------
 
 func test_stop_all_kills_every_running_upload() -> void:
 	_launch(_targets)
@@ -210,14 +198,85 @@ func test_stop_all_does_not_start_the_queued_exports() -> void:
 	assert_false(_runner.is_running())
 
 
-func test_stop_all_reports_how_many_targets_never_started() -> void:
+func test_stop_all_tells_each_target_that_never_started() -> void:
+	var notified: Array[String] = []
 	_launch(_targets)
-	watch_signals(_runner)
+	_runner.log_appended.connect(
+		func(text: String, target_id: String, _label: String) -> void:
+			if text == AppReleaseStrings.log_not_started:
+				notified.append(target_id)
+	)
+
 	_runner.stop()
 
-	var parameters: Array = get_signal_parameters(_runner, "log_appended")
-	assert_string_contains(parameters[0], "2 target(s) not started")
-	assert_eq(parameters[1], "", "a batch-wide notice belongs to no single target")
+	assert_eq(notified, [_id(1), _id(2)], "the two queued targets, not the running one")
+
+
+func test_no_output_is_ever_emitted_without_a_target() -> void:
+	var untargeted: Array[String] = []
+	_launch(_targets)
+	_runner.log_appended.connect(
+		func(text: String, target_id: String, _label: String) -> void:
+			if target_id.is_empty():
+				untargeted.append(text)
+	)
+
+	_runner.stop()
+
+	assert_eq(untargeted, [], "there is no catch-all tab for untargeted output to land in")
+
+
+func test_runs_changed_never_reports_an_idle_runner_mid_batch() -> void:
+	var seen: Array[bool] = []
+	_runner.runs_changed.connect(func() -> void: seen.append(_runner.is_running()))
+
+	_launch(_targets)
+	_finish(_id(0), _Outcome.SUCCEEDED)
+
+	assert_does_not_have(seen, false, "the runner must look busy until the batch is done")
+
+
+func test_the_runner_still_looks_busy_while_the_uploads_run() -> void:
+	var seen: Array[bool] = []
+	_launch(_targets)
+	_runner.runs_changed.connect(func() -> void: seen.append(_runner.is_running()))
+
+	for index in 3:
+		_finish(_id(index), _Outcome.SUCCEEDED)
+
+	assert_does_not_have(seen, false, "the upload stage must not read as idle")
+	assert_true(_runner.is_running())
+
+
+func test_runs_changed_reports_idle_once_the_batch_really_ends() -> void:
+	_launch(_targets)
+	for index in 3:
+		_finish(_id(index), _Outcome.SUCCEEDED)
+
+	var seen: Array[bool] = []
+	_runner.runs_changed.connect(func() -> void: seen.append(_runner.is_running()))
+	for index in 3:
+		_finish(_id(index), _Outcome.SUCCEEDED)
+
+	assert_has(seen, false, "the last upload finishing must report an idle runner")
+
+
+func test_a_batch_announces_every_target_before_the_first_one_starts() -> void:
+	var announced: Array[String] = []
+	_runner.batch_queued.connect(
+		func(ids: PackedStringArray) -> void:
+			announced.assign(Array(ids))
+			assert_eq(_spawns.size(), 0, "the tabs must exist before anything is spawned")
+	)
+
+	_launch(_targets)
+	assert_eq(announced, [_id(0), _id(1), _id(2)])
+
+
+func test_a_single_target_announces_no_batch() -> void:
+	watch_signals(_runner)
+	_launch([_targets[0]] as Array[AppReleaseTarget])
+	assert_signal_not_emitted(_runner, "batch_queued")
 
 
 func test_launching_clears_the_previous_run_s_output() -> void:

@@ -117,7 +117,10 @@ const label_log: StringName = "Log"
 const label_debug_build: StringName = "Debug build"
 const label_stop: StringName = "Stop all running releases"
 const label_stop_target_format: StringName = "Stop %s"
-const tab_general_log: StringName = "General"
+const label_follow_output: StringName = "Jump to latest"
+const tooltip_follow_output: StringName = (
+	"Scroll back to the end of the log and keep following new output."
+)
 const label_fetch: StringName = "Fetch"
 const ci_command_label: StringName = "CI Command"
 const label_copy_ci: StringName = "Copy"
@@ -184,6 +187,10 @@ const error_no_stderr: StringName = "(no stderr captured)"
 const error_empty_stderr: StringName = "(stderr empty)"
 
 const log_stopped_by_user: StringName = "\n--- Stopped by user ---\n"
+const log_waiting_for_turn: StringName = (
+	"Waiting for the other targets to finish exporting...\n"
+)
+const log_not_started: StringName = "Not started — the release group was stopped.\n"
 const log_fetch_failed_format: StringName = "\n--- Fetch %s failed ---\n%s\n"
 
 # --- documentation ---------------------------------------------------------------
