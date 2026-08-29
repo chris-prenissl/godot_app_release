@@ -2,18 +2,24 @@
 class_name AppReleaseBatchRunner
 extends RefCounted
 
-signal log_appended(text: String, label: String)
+signal log_appended(text: String, target_id: String, label: String)
 signal log_cleared()
 signal status_changed(text: String)
 signal runs_changed()
 
+enum Outcome { SUCCEEDED, FAILED, CANCELLED }
+
 const _EXIT_FILE_GRACE_TICKS := 4
 const _POLL_INTERVAL := 0.5
 
+var spawn_hook: Callable = Callable()
+var kill_hook: Callable = Callable()
+
 var _config: AppReleaseConfig
 var _runs: Dictionary = {}
-var _batch_targets: Dictionary = {}
-var _batch_export_queue: Dictionary = {}
+var _plan := AppReleaseBatchPlan.new()
+var _batch_id: String = ""
+var _stopping := false
 var _poll_timer: Timer
 
 
@@ -26,6 +32,10 @@ func _init(timer_parent: Node) -> void:
 
 func is_running() -> bool:
 	return not _runs.is_empty()
+
+
+func is_target_running(target_id: String) -> bool:
+	return _runs.has(target_id)
 
 
 func pid_for(target_id: String) -> int:
@@ -63,6 +73,14 @@ func start(
 			status_changed.emit(AppReleaseStrings.error_start_failed)
 			return false
 	AppReleaseRunContext.write_run_config(_config)
+
+	return launch(config, targets)
+
+func launch(config: AppReleaseConfig, targets: Array[AppReleaseTarget]) -> bool:
+	if config == null or targets.is_empty():
+		return false
+	_config = config
+	_stopping = false
 	log_cleared.emit()
 
 	if targets.size() == 1:
@@ -72,41 +90,49 @@ func start(
 		runs_changed.emit()
 		return true
 
-	var batch_id := Time.get_datetime_string_from_system().replace(":", "-")
+	_batch_id = Time.get_datetime_string_from_system().replace(":", "-")
 	var ids: PackedStringArray = []
 	for target in targets:
 		ids.append(target.target_id())
-	_batch_targets[batch_id] = ids
-	_batch_export_queue[batch_id] = ids.duplicate()
+	_plan.open(_batch_id, ids)
 
-	_spawn_next_batch_export(batch_id)
+	_spawn_next_batch_export(_batch_id)
 	_poll_timer.start()
 	runs_changed.emit()
 	return true
 
 
+func stop_target(target_id: String) -> void:
+	var run: AppReleaseRun = _runs.get(target_id)
+	if run == null:
+		return
+
+	_kill(run.pid)
+	_read_new_log_output(run)
+	log_appended.emit(
+		AppReleaseStrings.log_stopped_by_user, run.target_id, running_label(run.target_id)
+	)
+	_plan.drop_target(run.batch_id, run.target_id)
+	_finish_run(run, AppReleaseStrings.status_stopped_format % running_label(run.target_id),
+		Outcome.CANCELLED)
+
 func stop() -> void:
-	for run: AppReleaseRun in _runs.values().duplicate():
-		AppReleaseProcess.kill_process_tree(run.pid)
-		_read_new_log_output(run)
-		log_appended.emit(AppReleaseStrings.log_stopped_by_user, _log_label_for(run))
-		_finish_run(run, AppReleaseStrings.status_stopped_format % running_label(run.target_id), false)
+	_stopping = true
+	for target_id: String in _runs.keys().duplicate():
+		stop_target(target_id)
+	_abort_batch(_batch_id)
+	_stopping = false
 	_poll_timer.stop()
 
 
 func _spawn_next_batch_export(batch_id: String) -> void:
-	if not _batch_export_queue.has(batch_id):
+	if not _plan.has_batch(batch_id):
 		return
 
-	var queue: PackedStringArray = _batch_export_queue[batch_id]
-	if queue.is_empty():
-		_batch_export_queue.erase(batch_id)
+	var target_id := _plan.next_export(batch_id)
+	if target_id.is_empty():
 		_start_batch_uploads(batch_id)
 		return
-
-	var target_id: String = queue[0]
-	queue.remove_at(0)
-	_batch_export_queue[batch_id] = queue
 
 	var target := _config.find_target(target_id) if _config != null else null
 	if target == null:
@@ -118,8 +144,7 @@ func _spawn_next_batch_export(batch_id: String) -> void:
 
 
 func _start_batch_uploads(batch_id: String) -> void:
-	var target_ids: PackedStringArray = _batch_targets.get(batch_id, [])
-	_batch_targets.erase(batch_id)
+	var target_ids := _plan.upload_targets(batch_id)
 	if _config == null:
 		return
 	for target_id in target_ids:
@@ -129,11 +154,11 @@ func _start_batch_uploads(batch_id: String) -> void:
 
 
 func _abort_batch(batch_id: String) -> void:
-	var remaining: PackedStringArray = _batch_export_queue.get(batch_id, [])
-	_batch_export_queue.erase(batch_id)
-	_batch_targets.erase(batch_id)
+	var remaining := _plan.abort(batch_id)
 	if not remaining.is_empty():
-		log_appended.emit("Release group stopped: %d target(s) not started.\n" % remaining.size(), "")
+		log_appended.emit(
+			"Release group stopped: %d target(s) not started.\n" % remaining.size(), "", ""
+		)
 
 
 func _spawn_run(
@@ -147,30 +172,47 @@ func _spawn_run(
 	run.log_path = _log_path_for(target, phase, timestamp)
 	DirAccess.remove_absolute(run.log_path + AppReleaseStrings.exit_code_suffix)
 
-	var arguments: PackedStringArray = [
-		AppReleaseRunContext.run_env_path(target.target_id()), run.log_path,
-	]
-	if phase == AppReleaseRun.Phase.EXPORT:
-		arguments.append("export")
-	elif phase == AppReleaseRun.Phase.UPLOAD:
-		arguments.append("upload")
-
-	var command := AppReleaseProcess.release_command(arguments)
-	run.pid = OS.create_process(str(command["executable"]), command["arguments"])
+	run.pid = _launch_process(run, target)
 	if run.pid <= 0:
 		status_changed.emit(AppReleaseStrings.error_start_failed)
-		push_error("App Release: could not start %s." % command["executable"])
 		return null
 
 	_runs[run.target_id] = run
 	return run
 
 
+func _launch_process(run: AppReleaseRun, target: AppReleaseTarget) -> int:
+	if spawn_hook.is_valid():
+		return int(spawn_hook.call(run))
+
+	DirAccess.make_dir_recursive_absolute(run.log_path.get_base_dir())
+
+	var arguments: PackedStringArray = [
+		AppReleaseRunContext.run_env_path(target.target_id()), run.log_path,
+	]
+	if run.phase == AppReleaseRun.Phase.EXPORT:
+		arguments.append("export")
+	elif run.phase == AppReleaseRun.Phase.UPLOAD:
+		arguments.append("upload")
+
+	var command := AppReleaseProcess.release_command(arguments)
+	var pid := OS.create_process(str(command["executable"]), command["arguments"])
+	if pid <= 0:
+		push_error("App Release: could not start %s." % command["executable"])
+	return pid
+
+
+func _kill(pid: int) -> void:
+	if kill_hook.is_valid():
+		kill_hook.call(pid)
+		return
+	AppReleaseProcess.kill_process_tree(pid)
+
+
 func _log_path_for(target: AppReleaseTarget, phase: AppReleaseRun.Phase, timestamp: String) -> String:
 	var logs_root := ProjectSettings.globalize_path(
 		AppReleaseStrings.resource_path_prefix
 	).path_join(_config.logs_dir)
-	DirAccess.make_dir_recursive_absolute(logs_root)
 	if phase == AppReleaseRun.Phase.SINGLE:
 		return logs_root.path_join(
 			AppReleaseStrings.log_file_format % [target.target_id(), timestamp]
@@ -202,17 +244,21 @@ func _poll_run(run: AppReleaseRun) -> void:
 	_read_new_log_output(run)
 	if exit_code == null:
 		_finish_run(
-			run, "%s — the release script exited without a status." % running_label(run.target_id), false
+			run, "%s — the release script exited without a status." % running_label(run.target_id),
+			Outcome.FAILED
 		)
 		push_error("App Release: no exit status from the release script, see %s" % run.log_path)
 		return
 	if int(exit_code) == 0:
-		_finish_run(run, AppReleaseStrings.status_success_format % running_label(run.target_id), true)
+		_finish_run(
+			run, AppReleaseStrings.status_success_format % running_label(run.target_id),
+			Outcome.SUCCEEDED
+		)
 		return
 	_finish_run(
 		run,
 		AppReleaseStrings.status_failed_format % [int(exit_code), running_label(run.target_id)],
-		false
+		Outcome.FAILED
 	)
 	push_error("App Release: release failed, see log: %s" % run.log_path)
 
@@ -234,21 +280,18 @@ func _read_exit_code(run: AppReleaseRun) -> Variant:
 	return int(text)
 
 
-func _finish_run(run: AppReleaseRun, status: String, succeeded: bool) -> void:
+func _finish_run(run: AppReleaseRun, status: String, outcome: Outcome) -> void:
 	_runs.erase(run.target_id)
 	status_changed.emit(status)
 	runs_changed.emit()
 
-	if run.phase != AppReleaseRun.Phase.EXPORT:
+	if run.phase != AppReleaseRun.Phase.EXPORT or _stopping:
 		return
-	if succeeded:
-		_spawn_next_batch_export(run.batch_id)
-	else:
+
+	if outcome == Outcome.FAILED:
 		_abort_batch(run.batch_id)
-
-
-func _log_label_for(run: AppReleaseRun) -> String:
-	return running_label(run.target_id) if _runs.size() > 1 else ""
+	else:
+		_spawn_next_batch_export(run.batch_id)
 
 
 func _read_new_log_output(run: AppReleaseRun) -> void:
@@ -265,4 +308,4 @@ func _read_new_log_output(run: AppReleaseRun) -> void:
 	var new_text := file.get_buffer(length - run.log_read_len).get_string_from_utf8()
 	file.close()
 	run.log_read_len = length
-	log_appended.emit(new_text, _log_label_for(run))
+	log_appended.emit(new_text, run.target_id, running_label(run.target_id))

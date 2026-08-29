@@ -17,7 +17,7 @@ var _status_label: Label
 var _open_setup_button: Button
 var _edit_config_button: Button
 var _stop_button: Button
-var _log_view: TextEdit
+var _log_tabs: AppReleaseLogTabs
 var _columns_box: HBoxContainer
 var _release_tab: PanelContainer
 var _setup_panel: _SetupPanel
@@ -134,11 +134,9 @@ func _build_ui() -> void:
 	log_box.custom_minimum_size = Vector2(0, 300)
 	split.add_child(log_box)
 	log_box.add_child(_label(AppReleaseStrings.label_log))
-	_log_view = TextEdit.new()
-	_log_view.editable = false
-	_log_view.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_log_view.scroll_fit_content_height = false
-	log_box.add_child(_log_view)
+	_log_tabs = AppReleaseLogTabs.new()
+	_log_tabs.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	log_box.add_child(_log_tabs)
 
 	_confirm_dialog = ConfirmationDialog.new()
 	_confirm_dialog.title = AppReleaseStrings.dialog_title
@@ -148,7 +146,7 @@ func _build_ui() -> void:
 
 	_runner = AppReleaseBatchRunner.new(self)
 	_runner.log_appended.connect(_append_log)
-	_runner.log_cleared.connect(func() -> void: _log_view.text = "")
+	_runner.log_cleared.connect(func() -> void: _log_tabs.clear_all())
 	_runner.status_changed.connect(func(text: String) -> void: _status_label.text = text)
 	_runner.runs_changed.connect(_update_buttons)
 
@@ -299,6 +297,7 @@ func _rebuild_columns() -> void:
 		box.setup(group, targets)
 		box.fetch_requested.connect(_on_fetch_store_requested)
 		box.release_requested.connect(_on_release_pressed)
+		box.stop_requested.connect(_on_stop_target_pressed)
 		box.release_group_requested.connect(_on_release_group_pressed.bind(group))
 		box.ci_command_copied.connect(_on_ci_command_copied)
 		box.settings_changed.connect(_update_ci_commands)
@@ -523,11 +522,12 @@ func _on_stop_pressed() -> void:
 	_runner.stop()
 
 
-func _append_log(text: String, label: String = "") -> void:
-	if not label.is_empty():
-		text = "[%s] %s" % [label, text]
-	_log_view.text += text
-	_log_view.scroll_vertical = _log_view.get_line_count()
+func _on_stop_target_pressed(target_id: String) -> void:
+	_runner.stop_target(target_id)
+
+
+func _append_log(text: String, target_id: String = "", label: String = "") -> void:
+	_log_tabs.append(target_id, label, text)
 
 
 func _update_buttons() -> void:
@@ -536,7 +536,10 @@ func _update_buttons() -> void:
 	var ios_supported := AppReleaseProcess.is_macos()
 	for target_id in _columns:
 		var column: _TargetColumn = _columns[target_id]
-		column.update_buttons(running, ios_supported)
+		var this_running: bool = _runner.is_target_running(target_id)
+		column.update_buttons(running, this_running, ios_supported)
+		if _log_tabs.has_tab_for(target_id) or this_running:
+			_log_tabs.set_running(target_id, this_running, column.target.display_label())
 
 	_update_group_release_buttons()
 	_update_ci_commands()

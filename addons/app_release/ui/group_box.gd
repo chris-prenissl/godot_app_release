@@ -1,13 +1,11 @@
 @tool
 extends PanelContainer
 
-## One bordered box in the Release panel's row of groups: a title, that group's own
-## target columns chained side by side, and a "Release <name>" button at the bottom.
-
 const _TargetColumn := preload("target_column.gd")
 
 signal fetch_requested(store_id: String)
 signal release_requested(target_id: String)
+signal stop_requested(target_id: String)
 signal release_group_requested()
 signal ci_command_copied(target_label: String)
 signal settings_changed()
@@ -45,6 +43,9 @@ func setup(release_group: AppReleaseGroup, targets: Array[AppReleaseTarget]) -> 
 		column.fetch_requested.connect(func(store_id: String) -> void: fetch_requested.emit(store_id))
 		column.release_requested.connect(
 			func(target_id: String) -> void: release_requested.emit(target_id)
+		)
+		column.stop_requested.connect(
+			func(target_id: String) -> void: stop_requested.emit(target_id)
 		)
 		column.ci_command_copied.connect(
 			func(target_label: String) -> void: ci_command_copied.emit(target_label)

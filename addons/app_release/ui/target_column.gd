@@ -3,10 +3,12 @@ extends VBoxContainer
 
 signal fetch_requested(store_id: String)
 signal release_requested(target_id: String)
+signal stop_requested(target_id: String)
 signal ci_command_copied(target_label: String)
 signal settings_changed()
 
 var target: AppReleaseTarget
+var _is_running := false
 
 var _tree: Tree
 var _status: Label
@@ -84,7 +86,7 @@ func setup(release_target: AppReleaseTarget) -> void:
 
 	_release_button = Button.new()
 	_release_button.text = AppReleaseStrings.label_release_to_format % target.display_label()
-	_release_button.pressed.connect(func() -> void: release_requested.emit(target.target_id()))
+	_release_button.pressed.connect(_on_release_button_pressed)
 	add_child(_release_button)
 
 	var ci_row := HBoxContainer.new()
@@ -123,19 +125,34 @@ func _on_copy_ci_pressed() -> void:
 	ci_command_copied.emit(target.display_label())
 
 
-func update_buttons(release_running: bool, ios_supported: bool) -> void:
-	var blocked := release_running
-	var reason := ""
+func update_buttons(any_running: bool, this_running: bool, ios_supported: bool) -> void:
+	_is_running = this_running
 
-	if not blocked and target.is_ios() and not ios_supported:
-		blocked = true
-		reason = AppReleaseStrings.tooltip_ios_needs_macos
+	if this_running:
+		_release_button.text = AppReleaseStrings.label_stop_target_format % target.display_label()
+		_release_button.disabled = false
+		_release_button.tooltip_text = ""
+	else:
+		var blocked := any_running
+		var reason := ""
+		if not blocked and target.is_ios() and not ios_supported:
+			blocked = true
+			reason = AppReleaseStrings.tooltip_ios_needs_macos
 
-	_release_button.disabled = blocked
-	_release_button.tooltip_text = reason
-	_fetch_button.disabled = release_running
+		_release_button.text = AppReleaseStrings.label_release_to_format % target.display_label()
+		_release_button.disabled = blocked
+		_release_button.tooltip_text = reason
+
+	_fetch_button.disabled = any_running
 	if _debug_check != null:
-		_debug_check.disabled = release_running
+		_debug_check.disabled = any_running
+
+
+func _on_release_button_pressed() -> void:
+	if _is_running:
+		stop_requested.emit(target.target_id())
+	else:
+		release_requested.emit(target.target_id())
 
 
 func set_status(text: String) -> void:
