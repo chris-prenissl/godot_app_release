@@ -279,6 +279,71 @@ func test_a_single_target_announces_no_batch() -> void:
 	assert_signal_not_emitted(_runner, "batch_queued")
 
 
+func test_no_warning_while_nothing_runs() -> void:
+	assert_eq(_runner.running_warning(), "")
+
+
+func test_the_warning_names_every_running_target() -> void:
+	_launch(_targets)
+	for index in 3:
+		_finish(_id(index), _Outcome.SUCCEEDED)
+
+	var warning := _runner.running_warning()
+	for label in ["Alpha", "Beta", "Gamma"]:
+		assert_string_contains(warning, label)
+
+
+func test_the_warning_names_only_the_target_still_exporting() -> void:
+	_launch(_targets)
+	var warning := _runner.running_warning()
+
+	assert_string_contains(warning, "Alpha")
+	assert_false(warning.contains("Beta"), "queued targets are not running yet")
+
+
+func test_no_warning_once_the_batch_has_finished() -> void:
+	_launch([_targets[0]] as Array[AppReleaseTarget])
+	_finish(_id(0), _Outcome.SUCCEEDED)
+	assert_eq(_runner.running_warning(), "")
+
+
+func test_killing_everything_stops_every_running_process() -> void:
+	_launch(_targets)
+	for index in 3:
+		_finish(_id(index), _Outcome.SUCCEEDED)
+	var pids: Array = _spawns.filter(
+		func(entry: Dictionary) -> bool: return entry["phase"] == _Phase.UPLOAD
+	).map(func(entry: Dictionary) -> int: return entry["pid"])
+
+	_runner.kill_all_processes()
+
+	assert_eq(_kills, pids)
+	assert_false(_runner.is_running())
+
+
+func test_killing_everything_starts_nothing_new() -> void:
+	_launch(_targets)
+	_runner.kill_all_processes()
+
+	assert_eq(_spawned(_Phase.EXPORT), [_id(0)], "the queued exports must not be spawned")
+	assert_eq(_spawned(_Phase.UPLOAD), [])
+
+
+func test_killing_everything_stays_silent() -> void:
+	_launch(_targets)
+	watch_signals(_runner)
+
+	_runner.kill_all_processes()
+
+	assert_signal_not_emitted(_runner, "log_appended")
+	assert_signal_not_emitted(_runner, "status_changed")
+
+
+func test_killing_everything_when_idle_is_a_no_op() -> void:
+	_runner.kill_all_processes()
+	assert_eq(_kills, [])
+
+
 func test_launching_clears_the_previous_run_s_output() -> void:
 	watch_signals(_runner)
 	_launch(_targets)

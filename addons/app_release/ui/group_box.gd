@@ -8,6 +8,7 @@ signal release_requested(target_id: String)
 signal stop_requested(target_id: String)
 signal release_group_requested()
 signal ci_command_copied(target_label: String)
+signal pid_copied(target_label: String)
 signal settings_changed()
 
 var group: AppReleaseGroup
@@ -49,6 +50,9 @@ func setup(release_group: AppReleaseGroup, targets: Array[AppReleaseTarget]) -> 
 		)
 		column.ci_command_copied.connect(
 			func(target_label: String) -> void: ci_command_copied.emit(target_label)
+		)
+		column.pid_copied.connect(
+			func(target_label: String) -> void: pid_copied.emit(target_label)
 		)
 		column.settings_changed.connect(func() -> void: settings_changed.emit())
 		columns[target.target_id()] = column

@@ -5,6 +5,7 @@ signal fetch_requested(store_id: String)
 signal release_requested(target_id: String)
 signal stop_requested(target_id: String)
 signal ci_command_copied(target_label: String)
+signal pid_copied(target_label: String)
 signal settings_changed()
 
 var target: AppReleaseTarget
@@ -18,6 +19,8 @@ var _debug_check: CheckBox
 var _release_button: Button
 var _ci_command_label: Label
 var _ci_command_edit: LineEdit
+var _pid_row: HBoxContainer
+var _pid_edit: LineEdit
 
 
 func setup(release_target: AppReleaseTarget) -> void:
@@ -84,6 +87,26 @@ func setup(release_target: AppReleaseTarget) -> void:
 		_debug_check.toggled.connect(_on_debug_toggled)
 		add_child(_debug_check)
 
+	_pid_row = HBoxContainer.new()
+	_pid_row.visible = false
+	add_child(_pid_row)
+
+	var pid_label := Label.new()
+	pid_label.text = AppReleaseStrings.label_pid
+	_pid_row.add_child(pid_label)
+
+	_pid_edit = LineEdit.new()
+	_pid_edit.editable = false
+	_pid_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_pid_edit.tooltip_text = AppReleaseStrings.tooltip_pid
+	_pid_row.add_child(_pid_edit)
+
+	var copy_pid_button := Button.new()
+	copy_pid_button.text = AppReleaseStrings.label_copy_ci
+	copy_pid_button.tooltip_text = AppReleaseStrings.tooltip_pid
+	copy_pid_button.pressed.connect(_on_copy_pid_pressed)
+	_pid_row.add_child(copy_pid_button)
+
 	_release_button = Button.new()
 	_release_button.text = AppReleaseStrings.label_release_to_format % target.display_label()
 	_release_button.pressed.connect(_on_release_button_pressed)
@@ -116,6 +139,26 @@ func set_ci_command(command: String) -> void:
 		_ci_command_edit.tooltip_text = AppReleaseStrings.tooltip_copy_ci
 	else:
 		_ci_command_edit.tooltip_text = command
+
+
+func set_pid(pid: int) -> void:
+	_pid_edit.text = str(pid) if pid > 0 else ""
+	_pid_row.visible = pid > 0
+
+
+func pid_text() -> String:
+	return _pid_edit.text
+
+
+func shows_pid() -> bool:
+	return _pid_row.visible
+
+
+func _on_copy_pid_pressed() -> void:
+	if _pid_edit.text.is_empty():
+		return
+	DisplayServer.clipboard_set(_pid_edit.text)
+	pid_copied.emit(target.display_label())
 
 
 func _on_copy_ci_pressed() -> void:

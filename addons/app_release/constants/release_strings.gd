@@ -130,6 +130,12 @@ const tooltip_copy_ci: StringName = (
 	+ "build number and options currently in the form. Copy it to the clipboard."
 )
 const status_ci_copied_format: StringName = "CI command for %s copied to the clipboard."
+const status_pid_copied_format: StringName = "PID for %s copied to the clipboard."
+const label_pid: StringName = "PID"
+const tooltip_pid: StringName = (
+	"Process id of the running release. Copy it to look the process up (ps, Activity "
+	+ "Monitor, Task Manager) or to stop it by hand."
+)
 const label_release_to_format: StringName = "Release to %s"
 const label_release_group_format: StringName = "Release %s"
 const label_unnamed_group: StringName = "(unnamed group)"
@@ -154,9 +160,6 @@ const tooltip_debug: StringName = (
 )
 const tooltip_fetch: StringName = "Load the release list from the store API"
 const tooltip_ios_needs_macos: StringName = "iOS releases require macOS with Xcode installed."
-const hint_notes_discarded: StringName = (
-	"* This target uploads the binary only — write \"What's New\" in App Store Connect."
-)
 
 const tree_columns: PackedStringArray = ["Date", "Version", "Status"]
 
@@ -191,6 +194,9 @@ const log_waiting_for_turn: StringName = (
 	"Waiting for the other targets to finish exporting...\n"
 )
 const log_not_started: StringName = "Not started — the release group was stopped.\n"
+const warning_quit_while_running_format: StringName = (
+	"Still releasing: %s. Quitting cancels the running release(s)."
+)
 const log_fetch_failed_format: StringName = "\n--- Fetch %s failed ---\n%s\n"
 
 # --- documentation ---------------------------------------------------------------

@@ -118,6 +118,24 @@ func stop_target(target_id: String) -> void:
 	_finish_run(run, AppReleaseStrings.status_stopped_format % running_label(run.target_id),
 		Outcome.CANCELLED)
 
+func running_warning() -> String:
+	if _runs.is_empty():
+		return ""
+	var labels: PackedStringArray = []
+	for target_id: String in _runs:
+		labels.append(running_label(target_id))
+	return AppReleaseStrings.warning_quit_while_running_format % ", ".join(labels)
+
+
+func kill_all_processes() -> void:
+	for run: AppReleaseRun in _runs.values():
+		_kill(run.pid)
+	_runs.clear()
+	_plan.abort(_batch_id)
+	if _poll_timer != null and is_instance_valid(_poll_timer):
+		_poll_timer.stop()
+
+
 func stop() -> void:
 	_stopping = true
 	for target_id: String in _runs.keys().duplicate():

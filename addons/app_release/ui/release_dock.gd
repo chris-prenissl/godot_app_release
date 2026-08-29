@@ -12,7 +12,6 @@ var _config: AppReleaseConfig
 var _version_edit: LineEdit
 var _build_edit: SpinBox
 var _notes_edit: TextEdit
-var _notes_hint: Label
 var _status_label: Label
 var _open_setup_button: Button
 var _edit_config_button: Button
@@ -197,14 +196,6 @@ func _build_form() -> Control:
 	)
 	notes_box.add_child(_notes_edit)
 
-	_notes_hint = Label.new()
-	_notes_hint.text = AppReleaseStrings.hint_notes_discarded
-	_notes_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_notes_hint.add_theme_font_size_override("font_size", 11)
-	_notes_hint.add_theme_color_override("font_color", Color(0.6, 0.6, 0.6))
-	_notes_hint.visible = false
-	notes_box.add_child(_notes_hint)
-
 	var side_box := VBoxContainer.new()
 	side_box.custom_minimum_size = Vector2(220, 0)
 	top.add_child(side_box)
@@ -299,6 +290,7 @@ func _rebuild_columns() -> void:
 		box.stop_requested.connect(_on_stop_target_pressed)
 		box.release_group_requested.connect(_on_release_group_pressed.bind(group))
 		box.ci_command_copied.connect(_on_ci_command_copied)
+		box.pid_copied.connect(_on_pid_copied)
 		box.settings_changed.connect(_update_ci_commands)
 		for target_id: String in box.columns:
 			_columns[target_id] = box.columns[target_id]
@@ -308,10 +300,6 @@ func _rebuild_columns() -> void:
 	if boxes.is_empty():
 		return
 	_columns_box.add_child(AppReleaseUiLayout.chain(boxes))
-
-	_notes_hint.visible = _config.enabled_targets().any(
-		func(candidate: AppReleaseTarget) -> bool: return candidate.release_notes_are_not_possible()
-	)
 
 	for store_id: String in _store_rows:
 		_fill_store_columns(store_id, _store_rows[store_id])
@@ -384,6 +372,10 @@ func _ci_command_for(target: AppReleaseTarget) -> String:
 		AppReleaseStrings.release_script_posix,
 		run_env_relative_path,
 	]
+
+
+func _on_pid_copied(target_label: String) -> void:
+	_status_label.text = AppReleaseStrings.status_pid_copied_format % target_label
 
 
 func _on_ci_command_copied(target_label: String) -> void:
@@ -517,6 +509,17 @@ func _on_release_confirmed() -> void:
 	_update_buttons()
 
 
+func quit_warning() -> String:
+	return _runner.running_warning() if _runner != null else ""
+
+
+func abandon_running_work() -> void:
+	if _runner != null:
+		_runner.kill_all_processes()
+	if _fetcher != null:
+		_fetcher.stop()
+
+
 func _on_stop_pressed() -> void:
 	_runner.stop()
 
@@ -548,6 +551,7 @@ func _update_buttons() -> void:
 		var column: _TargetColumn = _columns[target_id]
 		var this_running: bool = _runner.is_target_running(target_id)
 		column.update_buttons(running, this_running, ios_supported)
+		column.set_pid(_runner.pid_for(target_id))
 		if _log_tabs.has_tab_for(target_id) or this_running:
 			_log_tabs.set_running(target_id, this_running, column.target.display_label())
 

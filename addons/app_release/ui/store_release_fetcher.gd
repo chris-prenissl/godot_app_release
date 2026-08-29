@@ -39,6 +39,16 @@ func fetch_one(store_id: String, config: AppReleaseConfig) -> void:
 	_start(store_id)
 
 
+func stop() -> void:
+	if _pid > 0:
+		if OS.is_process_running(_pid):
+			AppReleaseProcess.kill_process_tree(_pid)
+		_pid = -1
+	_queue = PackedStringArray()
+	if _timer != null and is_instance_valid(_timer):
+		_timer.stop()
+
+
 func _start(store_id: String) -> void:
 	if store_id.is_empty() or _config == null:
 		return

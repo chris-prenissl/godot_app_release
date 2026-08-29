@@ -33,8 +33,15 @@ func _exit_tree() -> void:
 		_presets_timer.queue_free()
 		_presets_timer = null
 	if _dock != null:
+		_dock.abandon_running_work()
 		_dock.queue_free()
 		_dock = null
+
+
+func _get_unsaved_status(for_scene: String) -> String:
+	if not for_scene.is_empty() or _dock == null:
+		return ""
+	return _dock.quit_warning()
 
 
 func _on_presets_poll() -> void:
