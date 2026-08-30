@@ -1,6 +1,14 @@
 @tool
 extends VBoxContainer
 
+## The Setup tab: what is missing, and the buttons that fix it.
+##
+## Renders [method AppReleaseEnvironment.run] as a checklist and offers the three setup
+## actions — create [code]release_config.tres[/code], install the fastlane files and run
+## [code]bundle install[/code], update [code].gitignore[/code]. Nothing here overwrites an
+## existing file.
+
+## The config resource was created or changed, so the Release tab must reload it.
 signal config_changed
 
 const _ChecklistRow := preload("checklist_row.gd")
@@ -96,7 +104,7 @@ func refresh_with(config: AppReleaseConfig) -> void:
 	_create_config_button.disabled = config != null
 	_open_config_button.disabled = config == null
 	_scripts_button.disabled = _installer.is_running() or (
-		AppReleaseScaffolder.is_fastlane_scaffolded() and AppReleaseProcess.are_gems_installed()
+		AppReleaseScaffolder.is_fastlane_scaffolded() and AppReleaseShell.are_gems_installed()
 	)
 
 	for entry in AppReleaseEnvironment.run(config):

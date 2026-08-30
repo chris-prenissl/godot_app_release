@@ -2,7 +2,16 @@
 class_name AppReleaseLogTabs
 extends TabContainer
 
+## One log tab per target, filled as the release runs.
+##
+## Tabs are created on demand, keyed by target id, and a running target's tab is marked
+## with [code]▶[/code]. Each view follows the newest output until the reader scrolls up;
+## a [b]Jump to latest[/b] button brings following back.
+
+## Marks the tab of a target that is currently running.
 const _RUNNING_PREFIX := "▶ "
+## How far above the bottom still counts as "at the bottom" when deciding whether to keep
+## following.
 const _FOLLOW_SLACK_LINES := 2
 
 var _pages: Dictionary = {}
@@ -22,6 +31,8 @@ func append(key: String, label: String, text: String) -> void:
 	_write(key, view, text)
 
 
+## Shows placeholder text while the target waits its turn; the next [method append] clears
+## it.
 func set_waiting(key: String, label: String, text: String) -> void:
 	if key.is_empty():
 		return

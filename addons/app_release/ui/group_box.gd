@@ -1,17 +1,30 @@
 @tool
 extends PanelContainer
 
-const _TargetColumn := preload("target_column.gd")
+## The panel for one [AppReleaseGroup]: its heading, its target columns, and one button
+## that releases the whole group.
+##
+## Every signal a column emits is forwarded unchanged, so [code]ui/release_dock.gd[/code]
+## only has to listen to the groups.
 
+## A column's Fetch button was pressed.
 signal fetch_requested(store_id: String)
+## A column's Release button was pressed.
 signal release_requested(target_id: String)
+## A column's Stop button was pressed.
 signal stop_requested(target_id: String)
+## The group's own Release button was pressed — release every runnable target in it.
 signal release_group_requested()
+## A column's CI command was copied.
 signal ci_command_copied(target_label: String)
+## A column's pid was copied.
 signal pid_copied(target_label: String)
+## A column's tester groups or debug checkbox changed.
 signal settings_changed()
 
+## Group this panel shows.
 var group: AppReleaseGroup
+## Target id to its [code]target_column.gd[/code] control.
 var columns: Dictionary = {}
 
 var _release_button: Button

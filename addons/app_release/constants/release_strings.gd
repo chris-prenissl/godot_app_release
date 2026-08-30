@@ -6,12 +6,18 @@ extends RefCounted
 ##
 ## Keeping every user-facing string and every file/path literal in one place makes
 ## the plugin translatable and keeps the GDScript-to-shell contract in a single spot:
-## the keys written into `run.env` here must match the variables read by
-## `scripts/release.sh` and `scripts/release.ps1`.
+## the [code]env_*[/code] keys written into [code]run.env[/code] here must match the
+## variables read by [code]scripts/release.sh[/code] and [code]scripts/release.ps1[/code].
+## [br][br]
+## The constants are grouped in declaration order: paths, platforms and stores,
+## [code]run.env[/code] keys, editor settings, UI labels, messages, documentation links,
+## validation and status colouring.
+##
+## @tutorial(Architecture overview): https://github.com/chris-prenissl/godot_app_release/blob/main/ARCHITECTURE.md
 
-# --- paths ---------------------------------------------------------------------
 static var _addon_dir: String = ""
 
+## Derived from this script's own location, so the addon can be installed anywhere.
 static func addon_dir() -> String:
 	if _addon_dir.is_empty():
 		var script_path: String = AppReleaseStrings.new().get_script().resource_path
@@ -19,11 +25,13 @@ static func addon_dir() -> String:
 	return _addon_dir
 
 
+## Project paths the plugin reads or writes.
 const resource_path_prefix: StringName = "res://"
 const config_resource_path: StringName = "res://release_config.tres"
 const export_presets_path: StringName = "res://export_presets.cfg"
 const project_gitignore_path: StringName = "res://.gitignore"
 
+## Per-run scratch directory handed to bash and Ruby. Disposable, and gitignored.
 const work_dir_name: StringName = ".release_tools"
 const run_env_file_format: StringName = "run_%s.env"
 const run_config_file_name: StringName = "config.json"
@@ -31,26 +39,32 @@ const releases_file_format: StringName = "releases_%s.json"
 const stderr_suffix: StringName = ".err"
 const exit_code_suffix: StringName = ".exit"
 
+## Scripts shipped with the addon, relative to [method addon_dir].
 const release_script_posix: StringName = "scripts/release.sh"
 const release_script_windows: StringName = "scripts/release.ps1"
 const list_releases_script: StringName = "scripts/list_releases.rb"
 const ci_release_script: StringName = "scripts/ci_release.gd"
 const templates_dir: StringName = "templates"
 
+## Log filename: target id, then timestamp.
 const log_file_format: StringName = "release_%s_%s.log"
 const log_file_phase_format: StringName = "release_%s_%s_%s.log"
 
 const notes_temp_file_format: StringName = ".release_notes_%s.txt"
 
-# --- platforms and stores ------------------------------------------------------
+## Platform ids. Godot's own [code]platform=[/code] values are mapped onto these by
+## [AppReleasePresets].
 const platform_ios: StringName = "ios"
 const platform_android: StringName = "android"
 
+## Store ids, matching [constant AppReleaseTarget.STORE_IDS] and the [code]STORE[/code]
+## value read by the release scripts and [code]list_releases.rb[/code].
 const store_testflight: StringName = "testflight"
 const store_app_store: StringName = "app_store"
 const store_firebase: StringName = "firebase"
 const store_play: StringName = "play"
 
+## Where the release notes end up per store, shown under the notes field.
 const notes_destination: Dictionary = {
 	"testflight": "Notes become the TestFlight changelog.",
 	"app_store": "Notes are NOT uploaded — write \"What's New\" in App Store Connect.",
@@ -58,6 +72,7 @@ const notes_destination: Dictionary = {
 	"play": "Notes become the Google Play changelog.",
 }
 
+## Display names per store id.
 const store_labels: Dictionary = {
 	"testflight": "TestFlight",
 	"app_store": "App Store",
@@ -65,13 +80,15 @@ const store_labels: Dictionary = {
 	"play": "Google Play",
 }
 
+## Display names per release kind — see [method AppReleaseTarget.release_kind_id].
 const release_kind_labels: Dictionary = {
 	"test": "Test",
 	"store": "Store",
 }
 
-# --- run.env keys --------------------------------------------------------------
-# Must stay in sync with scripts/release.sh and scripts/release.ps1.
+## Keys written into [code]run.env[/code] by [method AppReleaseRunFiles.write_run_env].
+## [b]Must stay in sync[/b] with the variables read by [code]scripts/release.sh[/code] and
+## [code]scripts/release.ps1[/code] — adding one means editing all three files.
 const env_target_id: StringName = "TARGET_ID"
 const env_target_label: StringName = "TARGET_LABEL"
 const env_platform: StringName = "PLATFORM"
@@ -102,14 +119,15 @@ const env_release_notes_file: StringName = "RELEASE_NOTES_FILE"
 const env_release_groups: StringName = "RELEASE_GROUPS"
 const env_ios_skip_build_processing_wait: StringName = "IOS_SKIP_BUILD_PROCESSING_WAIT"
 
-# --- editor settings keys ------------------------------------------------------
+## Editor-settings key the release notes are cached under, so they survive a restart.
 const setting_last_notes: StringName = "app_release/last_notes"
 
-# --- ui ------------------------------------------------------------------------
+## Name of the main-screen tab the plugin adds, next to 2D/3D/Script.
 const plugin_screen_name: StringName = "Release"
 const tab_release: StringName = "Release"
 const tab_setup: StringName = "Setup"
 
+## Labels, placeholders and tooltips of the Release tab's controls.
 const label_version_name: StringName = "Version name"
 const label_build_number: StringName = "Build number"
 const label_release_notes: StringName = "Release notes"
@@ -167,7 +185,7 @@ const dialog_title: StringName = "Start release?"
 const dialog_ok: StringName = "Release"
 const dialog_text_format: StringName = "Really execute this release?\n\n%s"
 
-# --- messages ------------------------------------------------------------------
+## Status-line, error and log messages, in [method String.format] form.
 const status_running_format: StringName = "Running: %s [%s] (pid %d)"
 const status_running_batch_format: StringName = "Releasing %d targets [%s]..."
 const status_nothing_to_release_format: StringName = "Nothing to release — %s"
@@ -199,7 +217,7 @@ const warning_quit_while_running_format: StringName = (
 )
 const log_fetch_failed_format: StringName = "\n--- Fetch %s failed ---\n%s\n"
 
-# --- documentation ---------------------------------------------------------------
+## Pages the Setup checklist links to from its [code]Docs ↗[/code] buttons.
 const docs_ruby: StringName = "https://www.ruby-lang.org/en/documentation/installation/"
 const docs_bundler: StringName = "https://bundler.io/guides/getting_started.html"
 const docs_fastlane_install: StringName = "https://docs.fastlane.tools/#installing-fastlane"
@@ -233,16 +251,29 @@ const docs_godot_version_control: StringName = (
 )
 const docs_xcode: StringName = "https://developer.apple.com/documentation/xcode"
 
+## This plugin's own per-store setup guides, also shipped as
+## [code]addons/app_release/docs/[/code].
+const docs_guide_ios: StringName = (
+	"https://github.com/chris-prenissl/godot_app_release/blob/main/docs/ios-app-store.md"
+)
+const docs_guide_play: StringName = (
+	"https://github.com/chris-prenissl/godot_app_release/blob/main/docs/google-play.md"
+)
+const docs_guide_firebase: StringName = (
+	"https://github.com/chris-prenissl/godot_app_release/blob/main/docs/firebase-app-distribution.md"
+)
+
 const label_docs: StringName = "Docs ↗"
 const tooltip_docs_format: StringName = "Click to open this page in your browser:\n%s"
 
-# --- validation ----------------------------------------------------------------
+## Characters a version name may contain — see [method AppReleaseVersionPatcher.is_valid_version].
 const version_pattern: StringName = "^[A-Za-z0-9._+-]+$"
 
-# --- status colouring ----------------------------------------------------------
+## Store status values rendered green in a target column's release list.
 const status_good: PackedStringArray = [
 	"completed", "distributed", "valid", "processing", "ready_for_sale", "prepare_for_submission",
 ]
+## Store status values rendered red in a target column's release list.
 const status_bad: PackedStringArray = [
 	"failed", "invalid", "halted", "rejected", "developer_rejected",
 ]

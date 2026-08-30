@@ -2,6 +2,8 @@
 class_name AppReleaseUiLayout
 extends RefCounted
 
+## Layout helper for the Release tab.
+
 static func chain(controls: Array[Control]) -> Control:
 	var result: Control = controls[controls.size() - 1]
 	for i in range(controls.size() - 2, -1, -1):

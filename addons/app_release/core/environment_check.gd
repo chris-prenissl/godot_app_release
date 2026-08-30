@@ -5,9 +5,13 @@ extends RefCounted
 ## Inspects the machine and the project, and reports what still needs doing.
 ##
 ## Everything here is local: version probes and file existence, no network calls.
-## Each entry is `{name, ok, detail, hint}` and is rendered as one row of the
-## Setup tab's checklist.
+## Each entry is a [Dictionary] of
+## [code]{name, ok, level, detail, hint, docs}[/code] and is rendered as one row of the
+## Setup tab's checklist by [code]ui/checklist_row.gd[/code], including a
+## [code]Docs ↗[/code] link when [code]docs[/code] is set.
 
+## How bad a failed check is. Decides the row's colour; [constant Level.OK] is used for
+## every passing check regardless of the level it would fail at.
 enum Level {OK, WARNING, ERROR}
 
 
@@ -23,10 +27,10 @@ static func run(config: AppReleaseConfig) -> Array[Dictionary]:
 static func check_tools() -> Array[Dictionary]:
 	var results: Array[Dictionary] = []
 
-	if AppReleaseProcess.is_windows():
+	if AppReleaseShell.is_windows():
 		results.append(_entry(
 			"PowerShell",
-			AppReleaseProcess.has_command("powershell.exe"),
+			AppReleaseShell.has_command("powershell.exe"),
 			"Runs the bundled release script.",
 			"PowerShell ships with Windows; check your PATH if this fails.",
 			Level.ERROR,
@@ -43,15 +47,15 @@ static func check_tools() -> Array[Dictionary]:
 	else:
 		results.append(_entry(
 			"bash",
-			AppReleaseProcess.has_command("bash"),
+			AppReleaseShell.has_command("bash"),
 			"Runs the bundled release script.",
 			"Install bash, or run releases from a terminal instead.",
 			Level.ERROR,
 			AppReleaseStrings.docs_godot_command_line
 		))
 
-	var ruby := AppReleaseProcess.probe_version("ruby")
-	var ruby_major := AppReleaseProcess.ruby_major_version(ruby)
+	var ruby := AppReleaseShell.probe_version("ruby")
+	var ruby_major := AppReleaseShell.ruby_major_version(ruby)
 	results.append(_entry(
 		"Ruby",
 		ruby_major >= 3,
@@ -61,7 +65,7 @@ static func check_tools() -> Array[Dictionary]:
 		AppReleaseStrings.docs_ruby
 	))
 
-	var bundler := AppReleaseProcess.probe_version("bundle")
+	var bundler := AppReleaseShell.probe_version("bundle")
 	results.append(_entry(
 		"Bundler", not bundler.is_empty(), bundler,
 		"gem install bundler",
@@ -69,7 +73,7 @@ static func check_tools() -> Array[Dictionary]:
 		AppReleaseStrings.docs_bundler
 	))
 
-	var fastlane := AppReleaseProcess.probe_version("fastlane", ["--version"])
+	var fastlane := AppReleaseShell.probe_version("fastlane", ["--version"])
 	results.append(_entry(
 		"fastlane", not fastlane.is_empty(), fastlane,
 		"brew install fastlane, or gem install fastlane",
@@ -77,8 +81,8 @@ static func check_tools() -> Array[Dictionary]:
 		AppReleaseStrings.docs_fastlane_install
 	))
 
-	if AppReleaseProcess.is_macos():
-		var xcode := AppReleaseProcess.probe_version("/usr/bin/xcodebuild", ["-version"])
+	if AppReleaseShell.is_macos():
+		var xcode := AppReleaseShell.probe_version("/usr/bin/xcodebuild", ["-version"])
 		results.append(_entry(
 			"Xcode", not xcode.is_empty(), xcode,
 			"Install Xcode from the App Store — required for iOS targets only.",
@@ -128,7 +132,7 @@ static func check_project_files(config: AppReleaseConfig) -> Array[Dictionary]:
 
 	results.append(_entry(
 		"Ruby gems installed",
-		AppReleaseProcess.are_gems_installed(),
+		AppReleaseShell.are_gems_installed(),
 		"bundle check",
 		"Press \"Install release scripts\" at the top.",
 		Level.ERROR,
@@ -209,7 +213,7 @@ static func check_targets(config: AppReleaseConfig) -> Array[Dictionary]:
 			config.apple_team_id if not config.apple_team_id.is_empty() else "Not set.",
 			"Set it under \"App identity\" in release_config.tres.",
 			Level.WARNING,
-			AppReleaseStrings.docs_app_store_connect_api
+			AppReleaseStrings.docs_guide_ios
 		))
 
 	for target in config.enabled_targets():
@@ -285,14 +289,12 @@ static func _platform_export_docs(platform: String) -> String:
 
 static func _target_docs(target: AppReleaseTarget) -> String:
 	match target.store:
-		AppReleaseTarget.Store.TESTFLIGHT:
-			return AppReleaseStrings.docs_fastlane_ios
-		AppReleaseTarget.Store.APP_STORE:
-			return AppReleaseStrings.docs_app_store_connect_api
+		AppReleaseTarget.Store.TESTFLIGHT, AppReleaseTarget.Store.APP_STORE:
+			return AppReleaseStrings.docs_guide_ios
 		AppReleaseTarget.Store.FIREBASE:
-			return AppReleaseStrings.docs_firebase_fastlane
+			return AppReleaseStrings.docs_guide_firebase
 		AppReleaseTarget.Store.PLAY:
-			return AppReleaseStrings.docs_play_service_account
+			return AppReleaseStrings.docs_guide_play
 	return _platform_export_docs(target.platform)
 
 

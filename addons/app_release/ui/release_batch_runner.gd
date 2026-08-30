@@ -2,18 +2,43 @@
 class_name AppReleaseBatchRunner
 extends RefCounted
 
+## Starts release processes and follows them until they exit.
+##
+## One target runs in a single phase. Several targets run as a [i]batch[/i]: the exports go
+## one after another — they all drive the same Godot exporter and the same
+## [code]export_presets.cfg[/code] — and once the last export is done every upload starts
+## at once. [AppReleaseBatchPlan] holds that queue, [AppReleaseRun] the state of one
+## process.
+## [br][br]
+## There is no pipe to read from: the script writes its own log file plus an
+## [code].exit[/code] sidecar, and this class polls both twice a second, emitting whatever
+## is new. That is also why a run that vanishes without writing a status is reported as a
+## failure rather than a success.
+
+## New output appeared in a run's log.
 signal log_appended(text: String, target_id: String, label: String)
+## A new release started; the panel should clear the log views.
 signal log_cleared()
+## A batch was queued. Carries every target id in it, so the panel can show the ones that
+## are still waiting for their turn.
 signal batch_queued(target_ids: PackedStringArray)
+## Status line changed.
 signal status_changed(text: String)
+## A run started or finished; buttons and PID fields need refreshing.
 signal runs_changed()
 
+## How a run ended.
 enum Outcome { SUCCEEDED, FAILED, CANCELLED }
 
+## Polls to wait for the [code].exit[/code] file after the process is gone, before calling
+## the run statusless. The script writes the log and the status separately.
 const _EXIT_FILE_GRACE_TICKS := 4
 const _POLL_INTERVAL := 0.5
 
+## Test seam: replaces [method OS.create_process]. Receives the [AppReleaseRun] and returns
+## a pid.
 var spawn_hook: Callable = Callable()
+## Test seam: replaces [method AppReleaseShell.kill_process_tree]. Receives a pid.
 var kill_hook: Callable = Callable()
 
 var _config: AppReleaseConfig
@@ -50,6 +75,8 @@ func running_label(target_id: String) -> String:
 	var target := _config.find_target(target_id)
 	return target.display_label() if target != null else target_id
 
+## Patches the version into the presets and writes a [code]run.env[/code] per target, then
+## hands over to [method launch].
 func start(
 	config: AppReleaseConfig, targets: Array[AppReleaseTarget], version: String, build: int,
 	notes_file: String
@@ -68,15 +95,17 @@ func start(
 		patched_presets.append(target.export_preset)
 
 	for target in targets:
-		if AppReleaseRunContext.write_run_env(
+		if AppReleaseRunFiles.write_run_env(
 			_config, target, version, build, notes_file
 		) != OK:
 			status_changed.emit(AppReleaseStrings.error_start_failed)
 			return false
-	AppReleaseRunContext.write_run_config(_config)
+	AppReleaseRunFiles.write_run_config(_config)
 
 	return launch(config, targets)
 
+## Starts the processes from the [code]run.env[/code] files already on disk — no patching,
+## so it re-runs a previously written configuration.
 func launch(config: AppReleaseConfig, targets: Array[AppReleaseTarget]) -> bool:
 	if config == null or targets.is_empty():
 		return false
@@ -207,14 +236,14 @@ func _launch_process(run: AppReleaseRun, target: AppReleaseTarget) -> int:
 	DirAccess.make_dir_recursive_absolute(run.log_path.get_base_dir())
 
 	var arguments: PackedStringArray = [
-		AppReleaseRunContext.run_env_path(target.target_id()), run.log_path,
+		AppReleaseRunFiles.run_env_path(target.target_id()), run.log_path,
 	]
 	if run.phase == AppReleaseRun.Phase.EXPORT:
 		arguments.append("export")
 	elif run.phase == AppReleaseRun.Phase.UPLOAD:
 		arguments.append("upload")
 
-	var command := AppReleaseProcess.release_command(arguments)
+	var command := AppReleaseShell.release_command(arguments)
 	var pid := OS.create_process(str(command["executable"]), command["arguments"])
 	if pid <= 0:
 		push_error("App Release: could not start %s." % command["executable"])
@@ -225,7 +254,7 @@ func _kill(pid: int) -> void:
 	if kill_hook.is_valid():
 		kill_hook.call(pid)
 		return
-	AppReleaseProcess.kill_process_tree(pid)
+	AppReleaseShell.kill_process_tree(pid)
 
 
 func _log_path_for(target: AppReleaseTarget, phase: AppReleaseRun.Phase, timestamp: String) -> String:

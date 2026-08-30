@@ -1,6 +1,18 @@
 @tool
 extends TabContainer
 
+## The plugin's main screen: the [b]Release[/b] and [b]Setup[/b] tabs.
+##
+## Owns the version, build-number and release-notes form, one
+## [code]ui/group_box.gd[/code] per [AppReleaseGroup], the log tabs and the status line, and
+## wires them to the three workers: [AppReleaseBatchRunner] (running releases),
+## [AppReleaseStoreFetcher] (release lists) and [code]ui/setup_panel.gd[/code] (first-time
+## setup).
+## [br][br]
+## Pressing Release patches the version into [code]export_presets.cfg[/code], asks for
+## confirmation, and hands the targets to the runner. The dock itself never starts a
+## process.
+
 const _TargetColumn := preload("target_column.gd")
 const _GroupBox := preload("group_box.gd")
 const _SetupPanel := preload("setup_panel.gd")
@@ -72,6 +84,7 @@ func _on_filesystem_changed() -> void:
 		return
 	_reload_config()
 
+## Rebuilds the columns after [code]export_presets.cfg[/code] changed on disk.
 func on_export_presets_changed() -> void:
 	_reload_config()
 
@@ -404,7 +417,7 @@ func _request_release(target_ids: PackedStringArray) -> void:
 
 	var runnable: Array[AppReleaseTarget] = []
 	var skipped: Array[Dictionary] = []
-	var ios_supported := AppReleaseProcess.is_macos()
+	var ios_supported := AppReleaseShell.is_macos()
 
 	for target_id in target_ids:
 		var target := _config.find_target(target_id)
@@ -487,7 +500,7 @@ func _on_release_confirmed() -> void:
 	var version := _version_edit.text.strip_edges()
 	var build := int(_build_edit.value)
 	var timestamp := Time.get_datetime_string_from_system().replace(":", "-")
-	var notes_file := AppReleaseRunContext.write_notes_file(_notes_edit.text, timestamp)
+	var notes_file := AppReleaseRunFiles.write_notes_file(_notes_edit.text, timestamp)
 
 	if not _runner.start(_config, targets, version, build, notes_file):
 		return
@@ -546,7 +559,7 @@ func _on_batch_queued(target_ids: PackedStringArray) -> void:
 func _update_buttons() -> void:
 	var running := _runner.is_running()
 	_stop_button.disabled = not running
-	var ios_supported := AppReleaseProcess.is_macos()
+	var ios_supported := AppReleaseShell.is_macos()
 	for target_id in _columns:
 		var column: _TargetColumn = _columns[target_id]
 		var this_running: bool = _runner.is_target_running(target_id)
@@ -604,6 +617,7 @@ func _load_setting(key: String, fallback: Variant) -> Variant:
 		return fallback
 	return settings.get_setting(key)
 
+## Reloads a changed config and fetches the release lists once.
 func on_main_screen_shown() -> void:
 	_reload_config()
 

@@ -2,13 +2,16 @@
 class_name AppReleasePresets
 extends RefCounted
 
-## Read-only access to `res://export_presets.cfg`.
+## Read-only access to [code]res://export_presets.cfg[/code].
 ##
 ## Every target in [AppReleaseConfig] starts by picking a preset from here; the preset
 ## then supplies the platform, the artifact path and the initial bundle identifier.
 ## Nothing in this class writes — patching versions is [AppReleaseVersionPatcher]'s job.
+## [br][br]
+## A preset is returned as a [Dictionary] of [code]{name, platform, godot_platform,
+## export_path, section, options_section, options}[/code].
 
-## Godot's own `platform=` values mapped onto the plugin's platform ids.
+## Godot's own [code]platform=[/code] values mapped onto the plugin's platform ids.
 const _PLATFORM_IDS: Dictionary = {
 	"iOS": AppReleaseStrings.platform_ios,
 	"Android": AppReleaseStrings.platform_android,
@@ -73,6 +76,7 @@ static func find_preset(preset_name: String) -> Dictionary:
 	return {}
 
 
+## Inspector enum hint for [member AppReleaseTarget.export_preset].
 static func preset_name_hint() -> String:
 	var names: PackedStringArray = []
 	for preset in list_presets():
@@ -82,7 +86,9 @@ static func preset_name_hint() -> String:
 	return ",".join(names)
 
 
+## Android export format: a plain APK.
 const FORMAT_APK: int = 0
+## Android export format: an Android App Bundle, the format Google Play wants.
 const FORMAT_AAB: int = 1
 
 const _ANDROID_EXPORT_FORMAT_KEYS: PackedStringArray = [
@@ -90,6 +96,7 @@ const _ANDROID_EXPORT_FORMAT_KEYS: PackedStringArray = [
 	"export_format",
 ]
 
+## Falls back to the export path's extension when the preset does not say.
 static func get_android_export_format(preset: Dictionary) -> int:
 	if preset.is_empty():
 		return FORMAT_APK
@@ -128,6 +135,7 @@ static func apple_team_id_of(preset: Dictionary) -> String:
 	return str(options.get("application/app_store_team_id", ""))
 
 
+## [code]{version, build}[/code] the Release panel pre-fills its fields with.
 static func version_of(preset: Dictionary) -> Dictionary:
 	var fallback := {"version": AppReleaseStrings.placeholder_version, "build": 1}
 	if preset.is_empty():

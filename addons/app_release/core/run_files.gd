@@ -1,18 +1,20 @@
 @tool
-class_name AppReleaseRunContext
+class_name AppReleaseRunFiles
 extends RefCounted
 
-## Materialises the configuration for one run into `<project>/.release_tools/`.
+## Materialises the configuration for one run into [code]<project>/.release_tools/[/code].
 ##
-## `release_config.tres` cannot be read from bash or Ruby, so the resolved settings
-## are written out twice just before a child process starts:
-##
-## - `run.env` — `KEY="value"` lines, `source`-able by `release.sh` and loaded by
-##   fastlane through dotenv.
-## - `config.json` — the same identity data for `list_releases.rb`, which parses
-##   JSON natively and therefore needs no `jq`.
-##
-## Both files are per-project scratch data and belong in `.gitignore`.
+## [code]release_config.tres[/code] cannot be read from bash or Ruby, so the resolved
+## settings are written out twice just before a child process starts:
+## [br][br]
+## - [code]run.env[/code] — [code]KEY="value"[/code] lines, [code]source[/code]-able by
+##   [code]release.sh[/code] and loaded by fastlane through dotenv.[br]
+## - [code]config.json[/code] — the same identity data for [code]list_releases.rb[/code],
+##   which parses JSON natively and therefore needs no [code]jq[/code].
+## [br][br]
+## Both files are per-project scratch data and belong in [code].gitignore[/code]. The keys
+## written here are the [code]env_*[/code] constants of [AppReleaseStrings]; the release
+## scripts must read the same names.
 
 static func work_dir() -> String:
 	var path := ProjectSettings.globalize_path(AppReleaseStrings.resource_path_prefix).path_join(
@@ -34,6 +36,8 @@ static func releases_path(store_id: String) -> String:
 	return work_dir().path_join(AppReleaseStrings.releases_file_format % store_id)
 
 
+## [param groups_override] and [param force_debug] let the panel's per-column fields win
+## over the target's stored values.
 static func write_run_env(
 	config: AppReleaseConfig,
 	target: AppReleaseTarget,
@@ -64,14 +68,14 @@ static func write_run_env(
 		AppReleaseStrings.env_ios_export_options: target.export_options_plist,
 		AppReleaseStrings.env_pck_path: target.pck_path,
 		AppReleaseStrings.env_project_root: root.rstrip("/"),
-		AppReleaseStrings.env_godot_bin: AppReleaseProcess.godot_binary(
+		AppReleaseStrings.env_godot_bin: AppReleaseShell.godot_binary(
 			config.godot_binary_path_override
 		),
 		AppReleaseStrings.env_logs_dir: config.logs_dir,
 		AppReleaseStrings.env_release_notes_dir: config.release_notes_dir,
 		AppReleaseStrings.env_play_changelogs_dir: config.play_changelogs_dir,
 		AppReleaseStrings.env_keep_logs: str(config.keep_logs),
-		AppReleaseStrings.env_extra_path: AppReleaseProcess.build_ruby_paths_sorted_by_usability(config.extra_path_entries),
+		AppReleaseStrings.env_extra_path: AppReleaseShell.build_ruby_paths_sorted_by_usability(config.extra_path_entries),
 		AppReleaseStrings.env_debug_build: "1" if debug_build else "0",
 		AppReleaseStrings.env_version: version,
 		AppReleaseStrings.env_build: str(build),
@@ -110,6 +114,7 @@ static func write_run_config(config: AppReleaseConfig) -> Error:
 	}
 	return _write(run_config_path(), JSON.stringify(payload, "\t"))
 
+## Returns the file's path, or empty when there are no notes.
 static func write_notes_file(notes: String, timestamp: String) -> String:
 	if notes.strip_edges().is_empty():
 		return ""

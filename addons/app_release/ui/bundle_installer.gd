@@ -2,11 +2,19 @@
 class_name AppReleaseBundleInstaller
 extends RefCounted
 
+## Runs [code]bundle install[/code] in the background and reports when it is done.
+##
+## The gem install takes minutes, so it runs as a detached process while the editor stays
+## responsive; this class polls it and streams nothing — the output goes to
+## [code].release_tools/bundle_install.log[/code].
+
+## The install finished. [param succeeded] reflects the process exit code.
 signal finished(succeeded: bool)
 
 const _POLL_INTERVAL := 0.5
 const _LOG_NAME := "bundle_install.log"
 
+## Log file of the running or last install.
 var log_path: String = ""
 
 var _timer: Timer
@@ -28,8 +36,8 @@ func start(extra_path_entries: PackedStringArray = PackedStringArray()) -> bool:
 	if _pid > 0:
 		return false
 
-	log_path = AppReleaseRunContext.work_dir().path_join(_LOG_NAME)
-	var command := AppReleaseProcess.bundle_install_command(log_path, extra_path_entries)
+	log_path = AppReleaseRunFiles.work_dir().path_join(_LOG_NAME)
+	var command := AppReleaseShell.bundle_install_command(log_path, extra_path_entries)
 	_pid = OS.create_process(str(command["executable"]), command["arguments"])
 	if _pid <= 0:
 		_pid = -1
@@ -44,4 +52,4 @@ func _on_poll() -> void:
 		return
 	_timer.stop()
 	_pid = -1
-	finished.emit(AppReleaseProcess.are_gems_installed())
+	finished.emit(AppReleaseShell.are_gems_installed())

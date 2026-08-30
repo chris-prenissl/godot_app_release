@@ -7,7 +7,10 @@ extends RefCounted
 ## The fastlane setup is copied into the host project rather than kept inside the
 ## addon, so lanes stay editable and survive a plugin update. Nothing here ever
 ## overwrites an existing file — existing paths are reported as skipped.
+## [br][br]
+## Everything in this class sits behind a button in the Setup tab.
 
+## Template file name to destination, relative to the project root.
 const FASTLANE_TEMPLATES: Dictionary = {
 	"Gemfile": "Gemfile",
 	"Fastfile": "fastlane/Fastfile",
@@ -15,14 +18,17 @@ const FASTLANE_TEMPLATES: Dictionary = {
 	"Pluginfile": "fastlane/Pluginfile",
 }
 
+## The credentials file. Seeded with placeholders and never overwritten.
 const ENV_TEMPLATES: Dictionary = {
 	"env.example": "fastlane/.env",
 }
 
+## Bundler configuration pinning gems to a project-local [code]vendor/bundle[/code].
 const BUNDLER_TEMPLATES: Dictionary = {
 	"bundle_config": ".bundle/config",
 }
 
+## Entries [method append_gitignore] makes sure the project's [code].gitignore[/code] holds.
 const GITIGNORE_ENTRIES: PackedStringArray = [
 	"logs/",
 	".release_tools/",
@@ -105,6 +111,8 @@ static func _build_default_targets() -> Array[AppReleaseTarget]:
 
 	return targets
 
+## Returns [code]{"created", "skipped"}[/code]; an existing file is skipped, never
+## overwritten.
 static func scaffold_fastlane() -> Dictionary:
 	var created: PackedStringArray = []
 	var skipped: PackedStringArray = []

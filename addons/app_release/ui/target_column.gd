@@ -1,13 +1,28 @@
 @tool
 extends VBoxContainer
 
+## One column of the Release tab: everything about a single [AppReleaseTarget].
+##
+## Top to bottom: the store's recent releases, the per-target tester groups and debug
+## checkbox, the Release/Stop button, the CI command and the pid of a running release.
+## The column only emits intent — [code]ui/release_dock.gd[/code] decides what happens.
+## [br][br]
+## Built entirely in code by [method setup]; there is no scene file.
+
+## The column's Fetch button was pressed.
 signal fetch_requested(store_id: String)
+## The Release button was pressed for this target.
 signal release_requested(target_id: String)
+## The Stop button was pressed while this target was running.
 signal stop_requested(target_id: String)
+## The CI command was copied to the clipboard.
 signal ci_command_copied(target_label: String)
+## The pid was copied to the clipboard.
 signal pid_copied(target_label: String)
+## Tester groups or the debug checkbox changed, so the CI command needs rebuilding.
 signal settings_changed()
 
+## Target this column shows.
 var target: AppReleaseTarget
 var _is_running := false
 
@@ -168,6 +183,7 @@ func _on_copy_ci_pressed() -> void:
 	ci_command_copied.emit(target.display_label())
 
 
+## [param ios_supported] is [code]false[/code] off macOS, which disables iOS targets.
 func update_buttons(any_running: bool, this_running: bool, ios_supported: bool) -> void:
 	_is_running = this_running
 

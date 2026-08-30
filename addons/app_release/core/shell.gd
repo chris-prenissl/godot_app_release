@@ -1,12 +1,16 @@
 @tool
-class_name AppReleaseProcess
+class_name AppReleaseShell
 extends RefCounted
 
 ## The one place in the plugin that knows which operating system it is running on.
 ##
 ## Everything else deals in "run this script with these arguments" and lets this
-## class pick the interpreter, assemble a usable `PATH`, and tear a process tree
+## class pick the interpreter, assemble a usable [code]PATH[/code], and tear a process tree
 ## down again.
+## [br][br]
+## The [code]*_command[/code] methods return
+## [code]{"executable": String, "arguments": PackedStringArray}[/code], ready for
+## [method OS.create_process].
 
 const _BASH_CANDIDATES: PackedStringArray = [
 	"/bin/bash",
@@ -119,6 +123,8 @@ static func bundle_install_command(
 	return {"executable": _first_available(_BASH_CANDIDATES), "arguments": posix_argv}
 
 
+## Kills [param pid] [b]and every descendant[/b] — killing only the shell would leave the
+## export or fastlane running.
 static func kill_process_tree(pid: int) -> void:
 	if pid <= 0:
 		return
@@ -130,6 +136,9 @@ static func kill_process_tree(pid: int) -> void:
 	OS.kill(pid)
 
 
+## [code]PATH[/code] for child processes, with pre-3 Ruby directories demoted. The editor
+## hands children a minimal [code]PATH[/code], so this is what makes [code]bundle[/code]
+## findable at all.
 static func build_ruby_paths_sorted_by_usability(extra_entries: PackedStringArray) -> String:
 	var preferred: PackedStringArray = []
 	var demoted: PackedStringArray = []
@@ -191,6 +200,7 @@ static func has_command(command: String) -> bool:
 	return not _resolve_command(command).is_empty()
 
 
+## First line of [code]<command> --version[/code], or empty when it is missing or fails.
 static func probe_version(command: String, arguments: PackedStringArray = ["--version"]) -> String:
 	var resolved := _resolve_command(command)
 	if resolved.is_empty():

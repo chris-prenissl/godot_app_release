@@ -75,6 +75,27 @@ class TestDisplayLabel:
 		assert_eq(target.display_label(), "My Custom Column")
 
 
+class TestResourceName:
+	extends GutTest
+
+	func test_uses_the_explicit_label() -> void:
+		var target := AppReleaseTarget.new()
+		target.label = "My Custom Column"
+		assert_eq(target.resource_name, "My Custom Column")
+
+	func test_derives_a_name_when_the_label_is_blank() -> void:
+		var target := AppReleaseTarget.new()
+		target.store = AppReleaseTarget.Store.FIREBASE
+		assert_eq(target.resource_name, "Firebase App Distribution")
+
+	func test_falls_back_to_the_derived_name_when_the_label_is_cleared() -> void:
+		var target := AppReleaseTarget.new()
+		target.store = AppReleaseTarget.Store.FIREBASE
+		target.label = "My Custom Column"
+		target.label = ""
+		assert_eq(target.resource_name, "Firebase App Distribution")
+
+
 class TestTargetId:
 	extends GutTest
 

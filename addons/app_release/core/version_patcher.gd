@@ -3,17 +3,22 @@ class_name AppReleaseVersionPatcher
 extends RefCounted
 
 ## Writes a version name and build number into a single preset of
-## `res://export_presets.cfg`.
+## [code]res://export_presets.cfg[/code].
 ##
 ## Godot rewrites that file itself, so this is a section-aware line rewrite rather
-## than a `ConfigFile` round-trip: only the `[preset.N.options]` block belonging to
-## the named preset is touched, and every other byte of the file is preserved.
+## than a [ConfigFile] round-trip: only the [code][preset.N.options][/code] block belonging
+## to the named preset is touched, and every other byte of the file is preserved.
+## [br][br]
+## Patching before the export is what makes a later manual export from
+## [b]Project → Export[/b] produce the same build.
 
 const _VERSION_KEYS: PackedStringArray = ["version/name=", "application/short_version="]
 const _BUILD_KEYS: PackedStringArray = ["version/code=", "application/version="]
 const _UNQUOTED_BUILD_KEYS: PackedStringArray = ["version/code="]
 
 
+## Rewrites one preset through a temporary file and a rename, so a crash cannot leave a
+## half-written [code]export_presets.cfg[/code] behind.
 static func patch(preset_name: String, version: String, build: int) -> Error:
 	if preset_name.is_empty():
 		push_error("App Release: no preset name given.")

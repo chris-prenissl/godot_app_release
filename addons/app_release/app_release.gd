@@ -1,9 +1,23 @@
 @tool
 extends EditorPlugin
 
+## Entry point of the App Release plugin.
+##
+## Adds the [b]Release[/b] main screen next to 2D/3D/Script, polls
+## [code]export_presets.cfg[/code] so the panel and the Inspector notice preset changes, and
+## warns before the editor quits while a release is running.
+##
+## @tutorial(Architecture overview): https://github.com/chris-prenissl/godot_app_release/blob/main/ARCHITECTURE.md
+## @tutorial(Ship to TestFlight and the App Store): https://github.com/chris-prenissl/godot_app_release/blob/main/docs/ios-app-store.md
+## @tutorial(Ship to Google Play): https://github.com/chris-prenissl/godot_app_release/blob/main/docs/google-play.md
+## @tutorial(Ship to Firebase App Distribution): https://github.com/chris-prenissl/godot_app_release/blob/main/docs/firebase-app-distribution.md
+
 const _ReleaseDock := preload("ui/release_dock.gd")
+## Editor icons tried in order for the main-screen tab; themes differ between versions.
 const _ICON_CANDIDATES: PackedStringArray = ["MoveUp", "ArrowUp", "Godot", "Node"]
 
+## How often [code]export_presets.cfg[/code] is checked for changes, in seconds. Godot
+## emits no signal for it.
 const _PRESETS_POLL_INTERVAL := 1.0
 
 var _dock: _ReleaseDock

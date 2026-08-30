@@ -2,12 +2,20 @@
 class_name AppReleaseStoreFetcher
 extends RefCounted
 
-## Fetches recent releases per store (`list_releases.rb`) one subprocess at a time,
-## draining a queue for [method fetch_all] or jumping the queue for a single
-## [method fetch_one] request (e.g. a column's own "Fetch" button).
+## Loads each store's recent releases, so you can see which build numbers are taken.
+##
+## Runs [code]scripts/list_releases.rb[/code] one subprocess at a time, draining a queue for
+## [method fetch_all] or jumping the queue for a single [method fetch_one] request (e.g. a
+## column's own [b]Fetch[/b] button). Results are read back from
+## [code].release_tools/releases_<store>.json[/code], errors from the [code].err[/code]
+## file beside it.
 
+## Status text for one store's column changed.
 signal store_status_changed(store_id: String, text: String)
+## A store's release list arrived. [param rows] is the parsed JSON.
 signal store_fetched(store_id: String, rows: Array)
+## A fetch failed; [param error] is the short version, the full stderr is in the
+## [code].err[/code] file.
 signal fetch_failed(store_id: String, error: String)
 
 const _POLL_INTERVAL := 0.5
@@ -34,6 +42,7 @@ func fetch_all(store_ids: PackedStringArray, config: AppReleaseConfig) -> void:
 		_start(_pop_queue())
 
 
+## Jumps the queue: [param store_id] is fetched next.
 func fetch_one(store_id: String, config: AppReleaseConfig) -> void:
 	_config = config
 	_start(store_id)
@@ -42,7 +51,7 @@ func fetch_one(store_id: String, config: AppReleaseConfig) -> void:
 func stop() -> void:
 	if _pid > 0:
 		if OS.is_process_running(_pid):
-			AppReleaseProcess.kill_process_tree(_pid)
+			AppReleaseShell.kill_process_tree(_pid)
 		_pid = -1
 	_queue = PackedStringArray()
 	if _timer != null and is_instance_valid(_timer):
@@ -54,18 +63,18 @@ func _start(store_id: String) -> void:
 		return
 	if _pid > 0:
 		if OS.is_process_running(_pid):
-			AppReleaseProcess.kill_process_tree(_pid)
+			AppReleaseShell.kill_process_tree(_pid)
 		_pid = -1
 		_timer.stop()
 
-	AppReleaseRunContext.write_run_config(_config)
-	_out_path = AppReleaseRunContext.releases_path(store_id)
+	AppReleaseRunFiles.write_run_config(_config)
+	_out_path = AppReleaseRunFiles.releases_path(store_id)
 	var stderr_path := _out_path + AppReleaseStrings.stderr_suffix
 	DirAccess.remove_absolute(_out_path)
 	DirAccess.remove_absolute(stderr_path)
 	_store_id = store_id
 
-	var command := AppReleaseProcess.fetch_command(
+	var command := AppReleaseShell.fetch_command(
 		store_id, _out_path, stderr_path, _config.extra_path_entries
 	)
 	_pid = OS.create_process(str(command["executable"]), command["arguments"])

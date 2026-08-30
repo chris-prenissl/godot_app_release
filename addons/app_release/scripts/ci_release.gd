@@ -3,25 +3,33 @@ extends SceneTree
 
 ## Headless entry point: does on a CI runner what the Release panel does locally.
 ##
-##   godot --headless --path . --script addons/app_release/scripts/ci_release.gd -- \
-##       --target <id> --version <name> --build <number> [options]
+## [codeblock lang=text]
+## godot --headless --path . --script addons/app_release/scripts/ci_release.gd -- \
+##     --target <id> --version <name> --build <number> [options]
+## [/codeblock]
+## It resolves a target out of [code]release_config.tres[/code], runs the same validation
+## the panel runs, patches the version into [code]export_presets.cfg[/code], and writes
+## [code].release_tools/run.env[/code]. Then hand that file to the release script:
+## [codeblock lang=text]
+## bash addons/app_release/scripts/release.sh .release_tools/run.env
+## [/codeblock]
+## [code]run.env[/code] is generated here rather than committed because it holds absolute
+## paths — [code]PROJECT_ROOT[/code], [code]GODOT_BIN[/code], [code]EXTRA_PATH[/code] —
+## that only make sense on the machine that wrote it.
+## [br][br]
+## Credentials do not need a [code]fastlane/.env[/code] on CI: the lanes read plain
+## environment variables, and dotenv ignores a missing file. Export your secrets as
+## [code]ASC_KEY_ID[/code], [code]PLAY_JSON_KEY_PATH[/code] and friends instead.
 ##
-## It resolves a target out of release_config.tres, runs the same validation the
-## panel runs, patches the version into export_presets.cfg, and writes
-## .release_tools/run.env. Then hand that file to the release script:
-##
-##   bash addons/app_release/scripts/release.sh .release_tools/run.env
-##
-## run.env is generated here rather than committed because it holds absolute
-## paths — PROJECT_ROOT, GODOT_BIN, EXTRA_PATH — that only make sense on the
-## machine that wrote it.
-##
-## Credentials do not need a fastlane/.env on CI: the lanes read plain
-## environment variables, and dotenv ignores a missing file. Export your secrets
-## as ASC_KEY_ID, PLAY_JSON_KEY_PATH and friends instead.
+## @tutorial(Ship to TestFlight and the App Store): https://github.com/chris-prenissl/godot_app_release/blob/main/docs/ios-app-store.md
+## @tutorial(Ship to Google Play): https://github.com/chris-prenissl/godot_app_release/blob/main/docs/google-play.md
+## @tutorial(Ship to Firebase App Distribution): https://github.com/chris-prenissl/godot_app_release/blob/main/docs/firebase-app-distribution.md
 
+## run.env was written.
 const _EXIT_OK := 0
+## The target is misconfigured, or a file could not be written.
 const _EXIT_FAILED := 1
+## Bad invocation — unknown or missing arguments.
 const _EXIT_USAGE := 2
 
 func _print_usage() -> void:
@@ -125,24 +133,24 @@ func _run(config: AppReleaseConfig, options: Dictionary) -> int:
 			_fail("--notes-file not found: %s" % notes_file)
 			return _EXIT_USAGE
 
-	var write_result := AppReleaseRunContext.write_run_env(
+	var write_result := AppReleaseRunFiles.write_run_env(
 		config, target, version, build, notes_file, str(options.get("groups", "")), options.has("debug")
 	)
 	if write_result != OK:
 		_fail("could not write run.env (%s)." % error_string(write_result))
 		return _EXIT_FAILED
-	AppReleaseRunContext.write_run_config(config)
+	AppReleaseRunFiles.write_run_config(config)
 
 	print("Target:     %s" % target.display_label())
 	print("Preset:     %s [%s]" % [target.export_preset, target.platform])
 	print("Build mode: %s" % AppReleaseTarget.BuildMode.keys()[target.build_mode])
 	print("Version:    %s (build %d)" % [version, build])
-	print("Wrote:      %s" % AppReleaseRunContext.run_env_path(target.target_id()))
+	print("Wrote:      %s" % AppReleaseRunFiles.run_env_path(target.target_id()))
 	print("")
 	print("Next: bash %s/%s %s" % [
 		_addon_project_path(),
 		AppReleaseStrings.release_script_posix,
-		_project_relative(AppReleaseRunContext.run_env_path(target.target_id())),
+		_project_relative(AppReleaseRunFiles.run_env_path(target.target_id())),
 	])
 	return _EXIT_OK
 

@@ -1,6 +1,11 @@
 @tool
 extends VBoxContainer
 
+## One row of the Setup checklist: status dot, name, detail, hint and a
+## [code]Docs ↗[/code] link.
+##
+## Renders a single entry as produced by [AppReleaseEnvironment].
+
 const _COLOR_OK := Color(0.36, 0.75, 0.55)
 const _COLOR_WARNING := Color(0.90, 0.72, 0.32)
 const _COLOR_ERROR := Color(0.85, 0.40, 0.40)

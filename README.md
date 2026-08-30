@@ -1,23 +1,38 @@
 # App Release
 
-## Overview
-
-A Godot 4 editor plugin that exports your project for mobile and ships it — to **TestFlight**, the
-**App Store**, **Firebase App Distribution** and **Google Play** — without leaving the editor.
+A Godot 4 editor plugin that exports your project for mobile and ships it — to **TestFlight**,
+the **App Store**, **Firebase App Distribution** and **Google Play** — without leaving the
+editor.
 
 It adds a **Release** tab next to 2D/3D/Script with one column per destination: the store's
-recent releases on top, a Release button underneath, and a live build log at the bottom.
-The work is mainly done by Godot's headless exporter and [fastlane](https://fastlane.tools).
+recent releases on top, a Release button underneath, and a live build log at the bottom. The
+work is mainly done by Godot's headless exporter and [fastlane](https://fastlane.tools).
 
-Released in [Godot Asset Store](https://store.godotengine.org/asset/christoph-prenissl/app-release/)
+Released in the [Godot Asset Store](https://store.godotengine.org/asset/christoph-prenissl/app-release/).
 
 | Setup | Release |
 |---|---|
 | ![Setup tab](media/screenshot-setup.png) | ![Release tab](media/screenshot-release.png) |
 
-## Technologies
+_Godot_ | _GDScript_ | _Fastlane_ | _Shell_ | _Plugin_ | _App_Store_Connect_API_ | _Firebase_App_Distribution_ | _Google_Play_API_
 
-_Godot_ | _GDScript_ | _Fastlane_ | _Shell_ | _Plugin_ | _App_Store_Connect_API_ | _Firebase_App_Distribution_ | _Google_Play_API_ 
+---
+
+## Contents
+
+- [What it does](#what-it-does)
+- [The building blocks](#the-building-blocks)
+- [Requirements](#requirements)
+- [Install](#install)
+- [First-time setup](#first-time-setup)
+- [Configure your targets](#configure-your-targets)
+- [Daily use](#daily-use)
+- [Per-store setup guides](#per-store-setup-guides)
+- [Where things end up](#where-things-end-up)
+- [Running it from a terminal](#running-it-from-a-terminal)
+- [Releasing from CI](#releasing-from-ci)
+- [Security](#security)
+- [Contributing](#contributing)
 
 ## What it does
 
@@ -27,11 +42,48 @@ _Godot_ | _GDScript_ | _Fastlane_ | _Shell_ | _Plugin_ | _App_Store_Connect_API_
 - **Fetch** pulls the current release list from each store so you can see which build
   numbers are already taken before you upload another one.
 - Release notes are written once and delivered everywhere they can be: the TestFlight
-  changelog, the Firebase App Distribution release note, and the Google Play changelog.
-  They are also archived to `release-notes/<version>-<build>.md`. (The App Store lane is
-  the deliberate exception — see below.)
+  changelog, the Firebase App Distribution release note, and the Google Play changelog. They
+  are also archived to `release-notes/<version>-<build>.md`. (The App Store lane is the
+  deliberate exception — see [the iOS guide](docs/ios-app-store.md#the-two-lanes).)
 - Version name and build number are written into `export_presets.cfg`, so a manual export
   from Project → Export produces the same build.
+
+## The building blocks
+
+Seven pieces, and it helps to know which one you are looking at when something goes wrong.
+
+| Piece | What it is | Yours to edit |
+|---|---|---|
+| **`release_config.tres`** | The whole configuration: app identity, groups, targets. Edited in the Inspector | yes |
+| **Release tab** | One panel per group, one column per target, the version/notes form, the log | — |
+| **Setup tab** | A checklist of what is still missing, and the buttons that fix it | — |
+| **`.release_tools/run_<target>.env`** | The resolved settings for one run, flattened to `KEY="value"` so bash and Ruby can read them. Regenerated every release | no, disposable |
+| **`scripts/release.sh`** | Exports the preset (and runs `xcodebuild` for iOS), then calls fastlane. The whole pipeline lives here | it ships with the addon |
+| **`fastlane/Fastfile`** | The upload lanes, copied into *your* project by the Setup tab | yes — a plugin update never touches it |
+| **`scripts/list_releases.rb`** | Reads each store's release list for the **Fetch** buttons | it ships with the addon |
+
+The flow, end to end:
+
+```
+release_config.tres  →  run.env  →  release.sh  →  godot --export / xcodebuild  →  fastlane  →  store
+```
+
+Diagrams and internals: [ARCHITECTURE.md](ARCHITECTURE.md).
+
+### Config, groups, targets
+
+Three resources, nested:
+
+- **`AppReleaseConfig`** — one per project. App identity (bundle id, package name, team id),
+  the paths logs and notes go to, and the list of groups.
+- **`AppReleaseGroup`** — a panel in the Release tab, e.g. *Test* and *Store*. It has a name
+  and a Release button that runs everything in it.
+- **`AppReleaseTarget`** — one export preset plus one store. This is the unit that gets
+  released, and it is what a column shows.
+
+Each is its own resource, so targets and groups can be added, duplicated and removed freely.
+Hovering a field in the Inspector shows what it does; pressing F1 and searching for
+`AppReleaseTarget` shows the full documentation.
 
 ## Requirements
 
@@ -65,33 +117,30 @@ Open the **Release** tab and switch to **Setup**. The checklist tells you what i
 work down it top to bottom.
 
 1. **Create config** — writes `res://release_config.tres` with one target per store your
-   export presets can serve. It only creates targets for platforms you actually have a
-   preset for.
+   export presets can serve. It only creates targets for platforms you actually have a preset
+   for.
 2. **Install release scripts** — copies `Gemfile` and
-   `fastlane/{Fastfile,Appfile,Pluginfile}` into your project, creates `fastlane/.env`
-   with placeholder values, and runs `bundle install` for you. The gem install takes a
-   few minutes and runs in the background; the button reports when it is done.
+   `fastlane/{Fastfile,Appfile,Pluginfile}` into your project, creates `fastlane/.env` with
+   placeholder values, and runs `bundle install` for you. The gem install takes a few minutes
+   and runs in the background; the button reports when it is done.
 
    These files are yours to edit — a plugin update will never overwrite them, and anything
    that already exists is left alone. Press the button again any time to re-run
    `bundle install`.
 3. **Update .gitignore** — keeps credentials, logs and build artifacts out of git.
-4. Fill in your credentials by editing `fastlane/.env`, which step 2 has already created
-   for you with placeholder values.
+4. **Fill in your credentials** by editing `fastlane/.env`, which step 2 created for you.
 
-   `fastlane/.env` is gitignored and is the only place secrets live. The plugin never
-   stores or transmits them.
+   `fastlane/.env` is gitignored and is the only place secrets live. The plugin never stores
+   or transmits them.
 
-   | Variable | Needed for | Scope |
-   |---|---|---|
-   | `ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_KEY_PATH` | TestFlight and App Store | Your whole Apple team |
-   | `PLAY_JSON_KEY_PATH` | Google Play | Your whole Play developer account |
-   | `FIREBASE_APP_ID_ANDROID` | Firebase App Distribution | This one app |
-   | `FIREBASE_SERVICE_CREDENTIALS` | Firebase — optional, see below | Your Firebase project |
+   | Variable | Needed for | Scope | Guide |
+   |---|---|---|---|
+   | `ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_KEY_PATH` | TestFlight and App Store | Your whole Apple team | [iOS](docs/ios-app-store.md) |
+   | `PLAY_JSON_KEY_PATH` | Google Play | Your whole Play developer account | [Play](docs/google-play.md) |
+   | `FIREBASE_APP_ID_ANDROID` | Firebase App Distribution | This one app | [Firebase](docs/firebase-app-distribution.md) |
+   | `FIREBASE_SERVICE_CREDENTIALS` | Firebase — optional | Your Firebase project | [Firebase](docs/firebase-app-distribution.md) |
 
-   For Firebase the plugin prefers a service-account JSON. If you leave
-   `FIREBASE_SERVICE_CREDENTIALS` empty it falls back to the session cached by
-   `firebase login`.
+   Each guide walks the store's own setup — accounts, keys, permissions — from zero.
 
 ## Configure your targets
 
@@ -110,63 +159,73 @@ Set once for the whole project, under **App identity**:
 These are seeded from your export presets when the config is created, so they are usually
 already correct.
 
-Identity lives here rather than on each target on purpose. The credentials in
-`fastlane/.env` are **one** App Store Connect key, **one** Play service account and **one**
-Firebase app id, so the setup already assumes a single iOS app and a single Android app per
-project. Putting the identifier on each target would let two targets disagree while still
-sharing those credentials — which fails in confusing ways rather than loudly. If you need
-to ship two different bundle ids, use two Godot projects.
+Identity lives here rather than on each target on purpose. The credentials in `fastlane/.env`
+are **one** App Store Connect key, **one** Play service account and **one** Firebase app id,
+so the setup already assumes a single iOS app and a single Android app per project. Putting
+the identifier on each target would let two targets disagree while still sharing those
+credentials — which fails in confusing ways rather than loudly. If you need to ship two
+different bundle ids, use two Godot projects.
 
 ### Targets
 
-**Pick the export preset first.** Everything else follows from it — the platform is read
-out of the preset, and that decides which stores you can pick, how the build modes are
-labelled, and which fields are shown at all.
+**Pick the export preset first.** Everything else follows from it — the platform is read out
+of the preset, and that decides which stores you can pick, how the build modes are labelled,
+and which fields are shown at all.
 
-Each target is its own resource, so you can add, duplicate and remove them freely.
+The Inspector groups a target's fields into **Source**, **Destination**, **Build**, **Native
+project** and **Testers**:
 
-| Field | Meaning |
-|---|---|
-| `export_preset` | Which preset from `export_presets.cfg` to export |
-| `store` | Where the artifact goes. Options depend on the preset's platform |
-| `build_mode` | See below |
-| `fastlane_lane` | Lane invoked as `fastlane <platform> <lane>` |
-| `play_track` | Google Play track — `internal`, `alpha`, `beta`, `production` |
-| `artifact_path` | What gets uploaded. Blank uses the preset's own export path |
-| `skip_build_processing_wait` | iOS only. Skip waiting for App Store Connect to finish processing the build after upload to TestFlight |
+| Field | Group | Meaning |
+|---|---|---|
+| `export_preset` | Source | Which preset from `export_presets.cfg` to export |
+| `platform` | Source | Read-only, derived from the preset |
+| `store` | Destination | Where the artifact goes. Options depend on the platform |
+| `play_track` | Destination | Google Play track — `internal`, `alpha`, `beta`, `production` |
+| `fastlane_lane` | Destination | Lane invoked as `fastlane <platform> <lane>` |
+| `label` | Destination | Column heading. Blank derives one |
+| `build_mode` | Build | See below |
+| `artifact_path` | Build | What gets uploaded. Blank uses the preset's own export path |
+| `debug_build`, `enabled` | Build | Debug template; whether the target appears at all |
+| `native_project_path`, `xcode_scheme`, `export_options_plist`, `pck_path` | Native project | iOS only, filled in from the preset |
+| `supports_tester_groups`, `test_groups` | Testers | Tester group aliases for TestFlight / Firebase |
+| `skip_build_processing_wait` | Testers | iOS only. Skip waiting for App Store Connect to process the build |
 
 ### Build modes
 
 | Mode | iOS | Android |
 |---|---|---|
-| **Godot export** | Godot builds the `.ipa` and regenerates the Xcode project | Godot builds the APK/AAB through Gradle |
+| **Godot export** | *not available* — a Godot iOS export produces an Xcode project, never an `.ipa` | Godot builds the APK/AAB through Gradle |
 | **Regenerate native project** | Godot regenerates the Xcode project, then `xcodebuild` archives and exports it | Reinstalls the Android build template, then exports |
 | **PCK only** | Exports just the `.pck`, then `xcodebuild` rebuilds your **existing, hand-maintained** `.xcodeproj` | Exports just the `.pck`, then runs `gradlew` in your existing `android/build` |
 
-*Godot export* is the right default. Switch to **PCK only** once you have an Xcode or Gradle
-project you have edited by hand — capabilities, entitlements, extra frameworks — because a
-full Godot export overwrites it. Use **Regenerate native project** deliberately, after a
-Godot or plugin upgrade, to pick up the new template.
+For Android, *Godot export* is the right default. For iOS, start with *Regenerate native
+project* and switch to **PCK only** once you have an Xcode project you have edited by hand —
+capabilities, entitlements, extra frameworks — because a full Godot export overwrites it.
 
 ## Daily use
 
 1. Set the **version name** and **build number**. They are written into every enabled
    target's preset as soon as the field loses focus.
-2. Write **release notes** — they become the TestFlight changelog, the Firebase release
-   note and the Play changelog.
-
-   The **App Store** lane is the one exception: it uploads the build only, with
-   `skip_metadata: true`. Pushing metadata there would overwrite your whole App Store
-   listing — description, keywords, screenshots — with whatever happens to be in the local
-   `fastlane/metadata` folder, so "What's New" stays something you write in App Store
-   Connect. If you keep your listing in `fastlane/metadata` and want it uploaded, drop
-   `skip_metadata` from the `ios release` lane in your own `fastlane/Fastfile`.
-3. Optionally add **test groups** (comma-separated aliases as defined in App Store Connect
-   or Firebase) and tick **Debug build**.
-4. Press **Release to …**, confirm, and watch the log.
+2. Write **release notes** — they become the TestFlight changelog, the Firebase release note
+   and the Play changelog.
+3. Optionally add **test groups** (comma-separated aliases as defined in App Store Connect or
+   Firebase) and tick **Debug build**.
+4. Press **Release to …**, confirm, and watch the log. A group's own button releases every
+   target in it: the exports run one after another, then all uploads start.
 5. Press **Fetch** on any column to reload that store's release list.
 
 Notes, groups and the debug checkbox survive an editor restart.
+
+## Per-store setup guides
+
+Each store has its own accounts, keys and rules. These walk them from zero:
+
+- **[TestFlight and the App Store](docs/ios-app-store.md)** — Apple Developer Program, App
+  Store Connect API key, signing, `ExportOptions.plist`, the two lanes, build numbers.
+- **[Google Play](docs/google-play.md)** — Play Console account, keystore, the first manual
+  upload, service account, tracks, AAB vs APK, `versionCode`.
+- **[Firebase App Distribution](docs/firebase-app-distribution.md)** — Firebase project, App
+  ID, service account vs `firebase login`, tester groups.
 
 ## Where things end up
 
@@ -178,11 +237,11 @@ Notes, groups and the debug checkbox survive an editor restart.
 | `release-notes/<version>-<build>.md` | Human-readable archive, safe to commit |
 | `fastlane/metadata/android/en-US/changelogs/<build>.txt` | Play changelog |
 
-## Troubleshooting
+### Troubleshooting
 
-**"another release is already running"** — a previous run left `logs/.release.lock` behind.
-The script clears it by itself once the owning process is gone; delete the directory if it
-persists.
+**"another release is already running"** — a previous run left `logs/.release.lock.<target>`
+behind. The script clears it by itself once the owning process is gone; delete the directory
+if it persists.
 
 **Fetch shows a red error** — the full stderr is in
 `.release_tools/releases_<store>.json.err`, and the short version is in the log pane.
@@ -191,49 +250,52 @@ persists.
 with a minimal `PATH`. The plugin already probes the usual locations (Homebrew, rbenv, rvm,
 asdf); add anything unusual to `extra_path_entries` in `release_config.tres`.
 
-**Uploading to TestFlight fails on a duplicate build** — Apple rejects a build number it has
-already seen. Press **Fetch** on the TestFlight column to see what is taken.
+**Uploading fails on a duplicate build** — the store rejects a build number it has already
+seen. Press **Fetch** on that column to see what is taken.
+
+Store-specific failures are covered at the end of each [store guide](#per-store-setup-guides).
 
 ## Running it from a terminal
 
 Everything the panel does is a shell script driven by one file. Each time you confirm a
-release, the plugin writes `.release_tools/run.env` — a plain, `source`-able list of
-`KEY="value"` pairs holding the whole resolved configuration for that run — and then hands
-it to the script:
+release, the plugin writes `.release_tools/run_<target>.env` — a plain, `source`-able list of
+`KEY="value"` pairs holding the whole resolved configuration for that run — and then hands it
+to the script:
 
 ```sh
-addons/app_release/scripts/release.sh .release_tools/run.env logs/manual.log
+addons/app_release/scripts/release.sh .release_tools/run_<target>.env logs/manual.log
 ```
 
-Running that yourself **repeats the last release the panel configured**. It is the quick
-way to retry after fixing a credential or a lane, without going back to the editor.
+Running that yourself **repeats the last release the panel configured**. It is the quick way
+to retry after fixing a credential or a lane, without going back to the editor. An optional
+third argument — `export`, `upload` or `all` — runs just one phase.
 
 Note the ordering: `run.env` is produced by the editor, so it does not exist in a fresh
-checkout, and it is gitignored. A terminal run is a *re-run*, not a first run. To change
-what gets built — a different target, version or build mode — set it in the panel and press
+checkout, and it is gitignored. A terminal run is a *re-run*, not a first run. To change what
+gets built — a different target, version or build mode — set it in the panel and press
 Release once, or hand-edit `run.env` before invoking the script. Note that the panel also
 patches the version into `export_presets.cfg` before starting; the script does not, so a
-hand-edited `VERSION` will not reach the export on its own.
+hand-edited `VERSION` will not reach the export.
 
 ## Releasing from CI
 
 For a release triggered by a commit, `run.env` has to be generated **on the runner** — it
-holds absolute paths (`PROJECT_ROOT`, `GODOT_BIN`, `EXTRA_PATH`) that mean nothing on
-another machine, so a committed one would not work. `ci_release.gd` does headlessly what
-pressing Release does in the editor:
+holds absolute paths (`PROJECT_ROOT`, `GODOT_BIN`, `EXTRA_PATH`) that mean nothing on another
+machine, so a committed one would not work. `ci_release.gd` does headlessly what pressing
+Release does in the editor:
 
 ```sh
 godot --headless --path . \
 	--script addons/app_release/scripts/ci_release.gd -- \
 	--target play_internal --version 1.4.0 --build "$GITHUB_RUN_NUMBER"
 
-bash addons/app_release/scripts/release.sh .release_tools/run.env
+bash addons/app_release/scripts/release.sh .release_tools/run_play_internal.env
 ```
 
 The first command resolves the target from `release_config.tres`, runs the same validation
 the panel runs, patches the version into `export_presets.cfg` and writes `run.env`. The
-second does the export and the upload. Both exit non-zero on failure, so the job fails
-where the problem is.
+second does the export and the upload. Both exit non-zero on failure, so the job fails where
+the problem is.
 
 Press **CI** on any target column to copy that target's exact command — with the version,
 build number, tester groups and debug flag currently in the form — to your clipboard.
@@ -242,8 +304,8 @@ build number, tester groups and debug flag currently in the form — to your cli
 
 ### Credentials on a runner
 
-**You do not need a `fastlane/.env`.** The lanes read plain environment variables, and
-dotenv ignores the file when it is missing — so export your secrets directly:
+**You do not need a `fastlane/.env`.** The lanes read plain environment variables, and dotenv
+ignores the file when it is missing — so export your secrets directly:
 
 ```yaml
 env:
@@ -261,46 +323,34 @@ workspace before the release step, and delete them afterwards.
 Commit `Gemfile`, `Gemfile.lock` and `fastlane/` so the runner can `bundle install` — only
 `fastlane/.env` stays out of git.
 
-### Android signing on a runner
-
-Godot normally reads the release keystore from your Editor Settings, which a runner does
-not have. Pass it through the environment instead:
-
-```
-GODOT_ANDROID_KEYSTORE_RELEASE_PATH      absolute path — the shell will not expand ~
-GODOT_ANDROID_KEYSTORE_RELEASE_USER      key alias
-GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD  key password
-```
-
-Two known traps: the path must be absolute, and setting *some but not all* of the matching
-`GODOT_ANDROID_KEYSTORE_DEBUG_*` variables can break a release export
-([godot#109551](https://github.com/godotengine/godot/issues/109551)) — set all of a group
-or none of it.
-
-### iOS on a runner
-
-Needs a macOS runner with Xcode, plus signing certificates in the keychain — `fastlane
-match`, or importing a `.p12` before the release step. If your target uses the **PCK only**
-build mode it also needs the `.xcodeproj` committed, which many projects deliberately do
-not do; **Godot export** mode avoids that.
+Android signing and iOS signing on a runner are covered in the
+[Play](docs/google-play.md#on-ci) and [iOS](docs/ios-app-store.md#on-ci) guides.
 
 ## Security
 
-Credentials only ever live in `fastlane/.env` and in the key files it points at, both
-outside version control. The plugin does not read, store or transmit them — it hands
-fastlane the environment and gets out of the way.
+Credentials only ever live in `fastlane/.env` and in the key files it points at, both outside
+version control. The plugin does not read, store or transmit them — it hands fastlane the
+environment and gets out of the way.
 
 One detail worth knowing: when no Firebase service account is configured, the release-list
 fetcher refreshes the session left by `firebase login`, using the OAuth client id and secret
 of the open-source `firebase-tools` CLI. Those values are published in that project's source
-— they are not secrets of yours — and you can override them with `FIREBASE_CLI_CLIENT_ID`
-and `FIREBASE_CLI_CLIENT_SECRET`. Configuring `FIREBASE_SERVICE_CREDENTIALS` skips that path
+— they are not secrets of yours — and you can override them with `FIREBASE_CLI_CLIENT_ID` and
+`FIREBASE_CLI_CLIENT_SECRET`. Configuring `FIREBASE_SERVICE_CREDENTIALS` skips that path
 entirely.
 
-## Running the test suite
+## Contributing
 
-This is for people working **on** the plugin itself — none of this ships in
-`addons/app_release/`, and none of it is needed to use the plugin in your own project.
+Working **on** the plugin rather than with it:
+
+- [ARCHITECTURE.md](ARCHITECTURE.md) — layers, class diagram, the release sequence, the
+  GDScript ↔ shell contract.
+- [.agents/README.md](.agents/README.md) — project map, the rules that are not obvious from
+  the code, and task guides in [.agents/skills/](.agents/skills/).
+
+### Running the test suite
+
+None of this ships in `addons/app_release/`, and none of it is needed to use the plugin.
 
 The suite is split by language, matching the three places the plugin's logic actually lives:
 
@@ -314,18 +364,22 @@ Shared test data — an example iOS export preset, a `run.env`, a stub `.xcodepr
 `ExportOptions.plist` — lives in `tests/fixtures/ios_basic/`, used by all three suites.
 
 **Prerequisites**, once per machine:
+
 ```sh
 brew install bats-core
 ```
+
 GUT is already vendored in the repo (`addons/gut/`, see `addons/gut/VENDORED_VERSION.md`) —
-nothing to install. RSpec's gems install on first run via the command below.
+nothing to install. RSpec's gems install on first run.
 
 **Run everything:**
+
 ```sh
 tests/run_all.sh
 ```
 
 **Run one language at a time:**
+
 ```sh
 # GDScript (GUT) — first run needs an import pass, or GUT's class_names won't resolve:
 godot --headless --path . --import
@@ -338,7 +392,8 @@ cd tests/ruby && bundle install && bundle exec rspec spec
 bats tests/shell
 ```
 
-There is no CI workflow yet — run `tests/run_all.sh` locally before opening a PR.
+The same suite runs on every push and pull request via
+[`.github/workflows/tests.yml`](.github/workflows/tests.yml).
 
 ## License
 
