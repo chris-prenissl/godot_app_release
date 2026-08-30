@@ -149,18 +149,7 @@ static func check_project_files(config: AppReleaseConfig) -> Array[Dictionary]:
 		AppReleaseStrings.docs_fastlane_keys
 	))
 
-	var gitignore_missing := PackedStringArray()
-	var gitignore_path := ProjectSettings.globalize_path(AppReleaseStrings.project_gitignore_path)
-	if FileAccess.file_exists(gitignore_path):
-		var file := FileAccess.open(gitignore_path, FileAccess.READ)
-		if file != null:
-			var text := file.get_as_text()
-			file.close()
-			for entry in AppReleaseScaffolder.GITIGNORE_ENTRIES:
-				if not entry in text:
-					gitignore_missing.append(entry)
-	else:
-		gitignore_missing = AppReleaseScaffolder.GITIGNORE_ENTRIES
+	var gitignore_missing := AppReleaseScaffolder.missing_project_gitignore_entries()
 	results.append(_entry(
 		".gitignore",
 		gitignore_missing.is_empty(),

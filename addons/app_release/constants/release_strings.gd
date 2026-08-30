@@ -119,7 +119,8 @@ const env_release_notes_file: StringName = "RELEASE_NOTES_FILE"
 const env_release_groups: StringName = "RELEASE_GROUPS"
 const env_ios_skip_build_processing_wait: StringName = "IOS_SKIP_BUILD_PROCESSING_WAIT"
 
-## Editor-settings key the release notes are cached under, so they survive a restart.
+## Release notes cache, inside the project's own [constant work_dir_name].
+const notes_cache_file_name: StringName = "last_notes.txt"
 const setting_last_notes: StringName = "app_release/last_notes"
 
 ## Name of the main-screen tab the plugin adds, next to 2D/3D/Script.
@@ -157,6 +158,68 @@ const tooltip_pid: StringName = (
 const label_release_to_format: StringName = "Release to %s"
 const label_release_group_format: StringName = "Release %s"
 const label_unnamed_group: StringName = "(unnamed group)"
+
+## Setup tab: the required steps, in order, and the optional helpers below them.
+const setup_intro: StringName = (
+	"Work down the required steps. Nothing here overwrites a file that already exists — a "
+	+ "button that is greyed out is a step already done."
+)
+const setup_required_heading: StringName = "Required"
+const setup_optional_heading: StringName = "Optional"
+
+const label_setup_create_config: StringName = "1 · Create config"
+const tooltip_setup_create_config: StringName = (
+	"Write release_config.tres with one target per store your export presets support."
+)
+const label_setup_scripts: StringName = "2 · Install release scripts"
+const tooltip_setup_scripts: StringName = (
+	"Copy Gemfile and fastlane/{Fastfile,Appfile,Pluginfile} into the project, create "
+	+ "fastlane/.env with placeholder credentials, then run bundle install."
+)
+const label_setup_gitignore: StringName = "Update .gitignore"
+const tooltip_setup_gitignore: StringName = (
+	"Keep credentials, logs and build artifacts out of git. Not needed to release, but "
+	+ "fastlane/.env must never be committed."
+)
+const label_setup_credentials: StringName = "3 · Edit credentials"
+const tooltip_setup_credentials: StringName = (
+	"Open fastlane/.env in your text editor. It is gitignored, and it is the only place your "
+	+ "store credentials live."
+)
+
+const label_setup_edit_config: StringName = "Edit config"
+const tooltip_setup_edit_config: StringName = "Open release_config.tres in the Inspector."
+const label_setup_agent_skills: StringName = "Install agent skills"
+const tooltip_setup_agent_skills: StringName = (
+	"Copy notes for AI coding agents into .agents/ — how to release this project from the "
+	+ "command line, how to check the setup, how to read a failed run, and how a Godot "
+	+ "project is laid out. Plain markdown, yours to edit."
+)
+const label_setup_refresh: StringName = "Refresh"
+const tooltip_setup_refresh: StringName = "Run the checklist again."
+
+const status_created_config_format: StringName = (
+	"Created %s with %d target(s). Open it and check each target's export preset."
+)
+const status_create_config_failed_format: StringName = "Could not write %s — see the Output panel."
+const status_gitignore_complete: StringName = ".gitignore already covers everything the plugin writes."
+const status_gitignore_added_format: StringName = "Added to .gitignore: %s"
+const status_credentials_missing: StringName = (
+	"No fastlane/.env yet — press \"Install release scripts\" first."
+)
+const status_credentials_opened_format: StringName = "Opened %s in your default editor."
+const status_agent_skills_created_format: StringName = "Installed agent skills: %s"
+const status_agent_skills_kept_format: StringName = "Kept existing %s"
+const status_scaffold_created_format: StringName = "Created %s. "
+const status_scaffold_kept_format: StringName = "Kept existing %s. "
+const status_installing_gems: StringName = (
+	"Installing Ruby gems (bundle install), this can take a few minutes..."
+)
+const status_gems_installed: StringName = (
+	"Ruby gems installed. Next: fill in your store credentials in fastlane/.env."
+)
+const status_bundle_start_failed: StringName = "Could not start bundle install — is Ruby installed?"
+const status_bundle_failed_format: StringName = "bundle install failed — see %s"
 
 const label_idle: StringName = "Idle"
 const label_open_setup: StringName = "Open Setup"

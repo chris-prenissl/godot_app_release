@@ -26,7 +26,7 @@ release_config.tres  →  run.env  →  release.sh  →  godot --export / xcodeb
 | UI | `addons/app_release/ui/` | The Release and Setup tabs. Owns no logic worth testing twice |
 | Strings | `addons/app_release/constants/` | Every user-facing string and every path literal |
 | Scripts | `addons/app_release/scripts/` | bash, PowerShell, Ruby, and the headless CI entry point |
-| Templates | `addons/app_release/templates/` | Seed copies of `Gemfile` and `fastlane/*`, copied into the host project once |
+| Templates | `addons/app_release/templates/` | Seed copies of `Gemfile`, `fastlane/*` and the `.agents/` skills, copied into the host project once |
 
 ## Classes
 
@@ -90,6 +90,8 @@ classDiagram
         <<static>>
         +create_default_config() AppReleaseConfig
         +scaffold_fastlane() Dictionary
+        +scaffold_agent_skills() Dictionary
+        +append_gitignore() PackedStringArray
     }
     class AppReleaseStrings {
         <<static>>
@@ -253,6 +255,7 @@ in `write_run_env()`, a reader in **both** scripts, and a `tests/shell` case.
 |---|---|---|
 | `release_config.tres` | Setup tab, then you | yes |
 | `Gemfile`, `fastlane/{Fastfile,Appfile,Pluginfile}` | Setup tab, then yours to edit | yes |
+| `.agents/README.md`, `.agents/skills/*.md` | Setup tab (optional), then yours to edit | yes |
 | `fastlane/.env` | Setup tab (placeholders) | **no** — credentials |
 | `.release_tools/run_<target>.env`, `config.json`, `releases_*.json` | the plugin, per run | no |
 | `logs/release_*.log` + `.exit` | `release.sh` | no |

@@ -28,6 +28,16 @@ const BUNDLER_TEMPLATES: Dictionary = {
 	"bundle_config": ".bundle/config",
 }
 
+## Agent-facing notes and task guides, copied into the project's [code].agents/[/code].
+## Optional — nothing in the plugin reads them.
+const AGENT_SKILL_TEMPLATES: Dictionary = {
+	"agents/README.md": ".agents/README.md",
+	"agents/skills/release-an-app.md": ".agents/skills/release-an-app.md",
+	"agents/skills/verify-release-setup.md": ".agents/skills/verify-release-setup.md",
+	"agents/skills/troubleshoot-a-release.md": ".agents/skills/troubleshoot-a-release.md",
+	"agents/skills/godot-project-basics.md": ".agents/skills/godot-project-basics.md",
+}
+
 ## Entries [method append_gitignore] makes sure the project's [code].gitignore[/code] holds.
 const GITIGNORE_ENTRIES: PackedStringArray = [
 	"logs/",
@@ -114,20 +124,25 @@ static func _build_default_targets() -> Array[AppReleaseTarget]:
 ## Returns [code]{"created", "skipped"}[/code]; an existing file is skipped, never
 ## overwritten.
 static func scaffold_fastlane() -> Dictionary:
+	var templates: Dictionary = {}
+	templates.merge(FASTLANE_TEMPLATES)
+	templates.merge(ENV_TEMPLATES)
+	templates.merge(BUNDLER_TEMPLATES)
+	return copy_templates(templates)
+
+
+## Same contract as [method scaffold_fastlane], for [constant AGENT_SKILL_TEMPLATES].
+static func scaffold_agent_skills() -> Dictionary:
+	return copy_templates(AGENT_SKILL_TEMPLATES)
+
+
+## Copies [param templates] (template name to project-relative destination) into the project.
+static func copy_templates(templates: Dictionary) -> Dictionary:
 	var created: PackedStringArray = []
 	var skipped: PackedStringArray = []
 
-	var jobs: Array[Array] = []
-	for template_name in FASTLANE_TEMPLATES:
-		jobs.append([template_name, FASTLANE_TEMPLATES[template_name]])
-	for template_name in ENV_TEMPLATES:
-		jobs.append([template_name, ENV_TEMPLATES[template_name]])
-	for template_name in BUNDLER_TEMPLATES:
-		jobs.append([template_name, BUNDLER_TEMPLATES[template_name]])
-
-	for job in jobs:
-		var template_name: String = job[0]
-		var destination: String = job[1]
+	for template_name: String in templates:
+		var destination: String = templates[template_name]
 		var destination_path := AppReleaseStrings.resource_path_prefix + destination
 		var destination_absolute_path := ProjectSettings.globalize_path(destination_path)
 
@@ -159,23 +174,28 @@ static func scaffold_fastlane() -> Dictionary:
 	return {"created": created, "skipped": skipped}
 
 
-static func append_gitignore() -> PackedStringArray:
-	var gitignore_absolute_path := ProjectSettings.globalize_path(AppReleaseStrings.project_gitignore_path)
-	var existing := ""
-	if FileAccess.file_exists(gitignore_absolute_path):
-		var file := FileAccess.open(gitignore_absolute_path, FileAccess.READ)
-		if file != null:
-			existing = file.get_as_text()
-			file.close()
-
+## Entries of [constant GITIGNORE_ENTRIES] that [param gitignore_text] does not already list.
+static func missing_gitignore_entries(gitignore_text: String) -> PackedStringArray:
 	var present: PackedStringArray = []
-	for line in existing.split("\n", false):
+	for line in gitignore_text.split("\n", false):
 		present.append(line.strip_edges())
 
 	var missing: PackedStringArray = []
 	for entry in GITIGNORE_ENTRIES:
 		if not entry in present:
 			missing.append(entry)
+	return missing
+
+
+## Entries the project's [code].gitignore[/code] is still missing, read from disk.
+static func missing_project_gitignore_entries() -> PackedStringArray:
+	return missing_gitignore_entries(_read_project_gitignore())
+
+
+## Adds the missing entries and returns them.
+static func append_gitignore() -> PackedStringArray:
+	var existing := _read_project_gitignore()
+	var missing := missing_gitignore_entries(existing)
 	if missing.is_empty():
 		return missing
 
@@ -184,6 +204,9 @@ static func append_gitignore() -> PackedStringArray:
 		appended += "\n"
 	appended += "\n%s\n%s\n" % [_GITIGNORE_HEADER, "\n".join(missing)]
 
+	var gitignore_absolute_path := ProjectSettings.globalize_path(
+		AppReleaseStrings.project_gitignore_path
+	)
 	var gitignore_sink := FileAccess.open(gitignore_absolute_path, FileAccess.WRITE)
 	if gitignore_sink == null:
 		push_error("App Release: cannot write %s (%s)." % [
@@ -195,8 +218,30 @@ static func append_gitignore() -> PackedStringArray:
 	return missing
 
 
+static func _read_project_gitignore() -> String:
+	var path := ProjectSettings.globalize_path(AppReleaseStrings.project_gitignore_path)
+	if not FileAccess.file_exists(path):
+		return ""
+	var file := FileAccess.open(path, FileAccess.READ)
+	if file == null:
+		return ""
+	var text := file.get_as_text()
+	file.close()
+	return text
+
+
 static func is_fastlane_scaffolded() -> bool:
-	for destination in FASTLANE_TEMPLATES.values() + ENV_TEMPLATES.values() + BUNDLER_TEMPLATES.values():
+	return _all_exist(
+		FASTLANE_TEMPLATES.values() + ENV_TEMPLATES.values() + BUNDLER_TEMPLATES.values()
+	)
+
+
+static func are_agent_skills_scaffolded() -> bool:
+	return _all_exist(AGENT_SKILL_TEMPLATES.values())
+
+
+static func _all_exist(destinations: Array) -> bool:
+	for destination in destinations:
 		var absolute := ProjectSettings.globalize_path(
 			AppReleaseStrings.resource_path_prefix + str(destination)
 		)

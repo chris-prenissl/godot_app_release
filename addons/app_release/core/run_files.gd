@@ -114,7 +114,25 @@ static func write_run_config(config: AppReleaseConfig) -> Error:
 	}
 	return _write(run_config_path(), JSON.stringify(payload, "\t"))
 
-## Returns the file's path, or empty when there are no notes.
+static func read_last_notes() -> String:
+	var path := notes_cache_path()
+	if not FileAccess.file_exists(path):
+		return ""
+	var file := FileAccess.open(path, FileAccess.READ)
+	if file == null:
+		return ""
+	var text := file.get_as_text()
+	file.close()
+	return text
+
+
+static func write_last_notes(notes: String) -> void:
+	_write(notes_cache_path(), notes)
+
+
+static func notes_cache_path() -> String:
+	return work_dir().path_join(AppReleaseStrings.notes_cache_file_name)
+
 static func write_notes_file(notes: String, timestamp: String) -> String:
 	if notes.strip_edges().is_empty():
 		return ""

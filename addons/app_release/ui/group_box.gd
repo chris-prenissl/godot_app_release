@@ -7,6 +7,8 @@ extends PanelContainer
 ## Every signal a column emits is forwarded unchanged, so [code]ui/release_dock.gd[/code]
 ## only has to listen to the groups.
 
+const _TargetColumn := preload("target_column.gd")
+
 ## A column's Fetch button was pressed.
 signal fetch_requested(store_id: String)
 ## A column's Release button was pressed.

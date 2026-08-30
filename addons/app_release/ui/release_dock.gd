@@ -205,7 +205,7 @@ func _build_form() -> Control:
 	_notes_edit.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_notes_edit.placeholder_text = AppReleaseStrings.placeholder_notes
 	_notes_edit.text_changed.connect(
-		func() -> void: _store_setting(AppReleaseStrings.setting_last_notes, _notes_edit.text)
+		func() -> void: AppReleaseRunFiles.write_last_notes(_notes_edit.text)
 	)
 	notes_box.add_child(_notes_edit)
 
@@ -321,7 +321,7 @@ func _rebuild_columns() -> void:
 
 
 func _restore_form_state() -> void:
-	_notes_edit.text = str(_load_setting(AppReleaseStrings.setting_last_notes, ""))
+	_notes_edit.text = _last_notes()
 
 	if _config == null:
 		return
@@ -605,17 +605,23 @@ func _fill_store_columns(store_id: String, rows: Array) -> void:
 			column.fill(rows)
 
 
-func _store_setting(key: String, value: Variant) -> void:
-	var settings := EditorInterface.get_editor_settings()
-	if settings != null:
-		settings.set_setting(key, value)
+func _last_notes() -> String:
+	var notes := AppReleaseRunFiles.read_last_notes()
+	if notes.is_empty():
+		notes = _migrate_notes_from_editor_settings()
+	return notes
 
 
-func _load_setting(key: String, fallback: Variant) -> Variant:
+func _migrate_notes_from_editor_settings() -> String:
 	var settings := EditorInterface.get_editor_settings()
-	if settings == null or not settings.has_setting(key):
-		return fallback
-	return settings.get_setting(key)
+	if settings == null or not settings.has_setting(AppReleaseStrings.setting_last_notes):
+		return ""
+
+	var notes := str(settings.get_setting(AppReleaseStrings.setting_last_notes))
+	settings.erase(AppReleaseStrings.setting_last_notes)
+	if not notes.is_empty():
+		AppReleaseRunFiles.write_last_notes(notes)
+	return notes
 
 ## Reloads a changed config and fetches the release lists once.
 func on_main_screen_shown() -> void:

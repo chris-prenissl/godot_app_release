@@ -38,6 +38,18 @@ installed addon:
 Everything else — requirements, install, setup, daily use, CI, troubleshooting — stays the
 same in both. When you change one, walk the other.
 
+## The skills the plugin installs into other projects
+
+`addons/app_release/templates/agents/` is a third audience: markdown copied into a *host*
+project's `.agents/` by the Setup tab's **Install agent skills** button. It documents the
+host project, not this repository — commands are written as the user of the plugin would run
+them (`godot --headless --path . --script addons/app_release/scripts/ci_release.gd -- …`),
+and it must never reference this repository's own `tests/`, `ARCHITECTURE.md` or `docs/`.
+
+Adding or renaming one means updating `AppReleaseScaffolder.AGENT_SKILL_TEMPLATES`; the
+mapping is covered by `tests/godot/unit/core/scaffolder_test.gd`, which fails if a template
+listed there is missing from disk.
+
 ## In-editor documentation
 
 The `##` doc comments feed Godot's Help panel and the Inspector, so a property added without

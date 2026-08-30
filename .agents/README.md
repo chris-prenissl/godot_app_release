@@ -52,6 +52,7 @@ addons/app_release/
     bundle_installer.gd   Background `bundle install`
   scripts/                release.sh, release.ps1, list_releases.rb, ci_release.gd
   templates/              Gemfile, Fastfile, Appfile, Pluginfile, env.example, bundle_config
+    agents/               Agent notes + skills copied into a host project's .agents/
   docs/                   Shipped copy of the root docs/ — keep in sync
 tests/                    godot/ (GUT), ruby/ (RSpec), shell/ (bats), fixtures/
 ```

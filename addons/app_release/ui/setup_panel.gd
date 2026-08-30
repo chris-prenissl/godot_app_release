@@ -3,10 +3,11 @@ extends VBoxContainer
 
 ## The Setup tab: what is missing, and the buttons that fix it.
 ##
-## Renders [method AppReleaseEnvironment.run] as a checklist and offers the three setup
-## actions — create [code]release_config.tres[/code], install the fastlane files and run
-## [code]bundle install[/code], update [code].gitignore[/code]. Nothing here overwrites an
-## existing file.
+## Renders [method AppReleaseEnvironment.run] as a checklist under two rows of buttons: the
+## [b]Required[/b] steps in the order they have to happen, and [b]Optional[/b] ones that a
+## release does not depend on. Refresh sits apart, next to the intro, because it changes
+## nothing. A step that is already done leaves its button disabled, and nothing here
+## overwrites an existing file.
 
 ## The config resource was created or changed, so the Release tab must reload it.
 signal config_changed
@@ -16,11 +17,16 @@ const _ChecklistRow := preload("checklist_row.gd")
 const _COLOR_OK := Color(0.36, 0.75, 0.55)
 const _COLOR_ERROR := Color(0.85, 0.40, 0.40)
 
+const _ENV_PATH := "res://fastlane/.env"
+
 var _checklist: VBoxContainer
 var _message: Label
 var _create_config_button: Button
-var _open_config_button: Button
 var _scripts_button: Button
+var _gitignore_button: Button
+var _credentials_button: Button
+var _open_config_button: Button
+var _agent_skills_button: Button
 
 var _installer: AppReleaseBundleInstaller
 var _scaffold_summary := ""
@@ -32,50 +38,72 @@ func _init() -> void:
 
 
 func _build_ui() -> void:
+	var header := HBoxContainer.new()
+	add_child(header)
+
 	var intro := Label.new()
-	intro.text = (
-		"Everything the plugin needs, and what is still missing. "
-		+ "Nothing here overwrites a file that already exists."
-	)
+	intro.text = AppReleaseStrings.setup_intro
 	intro.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	add_child(intro)
+	intro.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	header.add_child(intro)
 
-	var actions := HBoxContainer.new()
-	add_child(actions)
-
-	_scripts_button = Button.new()
-	_scripts_button.text = "Install release scripts"
-	_scripts_button.tooltip_text = (
-		"Copy Gemfile and fastlane/{Fastfile,Appfile,Pluginfile} into the project, "
-		+ "create fastlane/.env with placeholder credentials, then run bundle install."
+	var refresh_button := _button(
+		AppReleaseStrings.label_setup_refresh, AppReleaseStrings.tooltip_setup_refresh, refresh
 	)
-	_scripts_button.pressed.connect(_on_scaffold_pressed)
-	actions.add_child(_scripts_button)
+	refresh_button.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	header.add_child(refresh_button)
 
-	var gitignore_button := Button.new()
-	gitignore_button.text = "Update .gitignore"
-	gitignore_button.tooltip_text = "Keep credentials, logs and build artifacts out of git."
-	gitignore_button.pressed.connect(_on_gitignore_pressed)
-	actions.add_child(gitignore_button)
+	add_child(_heading(AppReleaseStrings.setup_required_heading))
 
-	_create_config_button = Button.new()
-	_create_config_button.text = "Create config"
-	_create_config_button.tooltip_text = (
-		"Write release_config.tres with one target per store your export presets support."
+	var required := HBoxContainer.new()
+	add_child(required)
+
+	_create_config_button = _button(
+		AppReleaseStrings.label_setup_create_config,
+		AppReleaseStrings.tooltip_setup_create_config,
+		_on_create_config_pressed
 	)
-	_create_config_button.pressed.connect(_on_create_config_pressed)
-	actions.add_child(_create_config_button)
+	required.add_child(_create_config_button)
 
-	_open_config_button = Button.new()
-	_open_config_button.text = "Edit config"
-	_open_config_button.tooltip_text = "Open release_config.tres in the Inspector."
-	_open_config_button.pressed.connect(_on_open_config_pressed)
-	actions.add_child(_open_config_button)
+	_scripts_button = _button(
+		AppReleaseStrings.label_setup_scripts,
+		AppReleaseStrings.tooltip_setup_scripts,
+		_on_scaffold_pressed
+	)
+	required.add_child(_scripts_button)
 
-	var refresh_button := Button.new()
-	refresh_button.text = "Refresh"
-	refresh_button.pressed.connect(refresh)
-	actions.add_child(refresh_button)
+	_credentials_button = _button(
+		AppReleaseStrings.label_setup_credentials,
+		AppReleaseStrings.tooltip_setup_credentials,
+		_on_credentials_pressed
+	)
+	required.add_child(_credentials_button)
+
+	add_child(_heading(AppReleaseStrings.setup_optional_heading))
+
+	var optional := HBoxContainer.new()
+	add_child(optional)
+
+	_gitignore_button = _button(
+		AppReleaseStrings.label_setup_gitignore,
+		AppReleaseStrings.tooltip_setup_gitignore,
+		_on_gitignore_pressed
+	)
+	optional.add_child(_gitignore_button)
+
+	_open_config_button = _button(
+		AppReleaseStrings.label_setup_edit_config,
+		AppReleaseStrings.tooltip_setup_edit_config,
+		_on_open_config_pressed
+	)
+	optional.add_child(_open_config_button)
+
+	_agent_skills_button = _button(
+		AppReleaseStrings.label_setup_agent_skills,
+		AppReleaseStrings.tooltip_setup_agent_skills,
+		_on_agent_skills_pressed
+	)
+	optional.add_child(_agent_skills_button)
 
 	_message = Label.new()
 	_message.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -94,8 +122,25 @@ func _build_ui() -> void:
 	_installer.finished.connect(_on_install_finished)
 
 
+static func _button(text: String, tooltip: String, on_pressed: Callable) -> Button:
+	var button := Button.new()
+	button.text = text
+	button.tooltip_text = tooltip
+	button.pressed.connect(on_pressed)
+	return button
+
+
+static func _heading(text: String) -> Label:
+	var label := Label.new()
+	label.text = text
+	label.add_theme_font_size_override("font_size", 12)
+	label.modulate = Color(1, 1, 1, 0.6)
+	return label
+
+
 func refresh() -> void:
 	refresh_with(AppReleaseConfig.load_project_config())
+
 
 func refresh_with(config: AppReleaseConfig) -> void:
 	for child in _checklist.get_children():
@@ -106,6 +151,11 @@ func refresh_with(config: AppReleaseConfig) -> void:
 	_scripts_button.disabled = _installer.is_running() or (
 		AppReleaseScaffolder.is_fastlane_scaffolded() and AppReleaseShell.are_gems_installed()
 	)
+	_gitignore_button.disabled = AppReleaseScaffolder.missing_project_gitignore_entries().is_empty()
+	_credentials_button.disabled = not FileAccess.file_exists(
+		ProjectSettings.globalize_path(_ENV_PATH)
+	)
+	_agent_skills_button.disabled = AppReleaseScaffolder.are_agent_skills_scaffolded()
 
 	for entry in AppReleaseEnvironment.run(config):
 		var row := _ChecklistRow.new()
@@ -116,11 +166,11 @@ func refresh_with(config: AppReleaseConfig) -> void:
 func _on_create_config_pressed() -> void:
 	var config := AppReleaseScaffolder.create_default_config()
 	if config == null:
-		_set_message("Could not write %s — see the Output panel." % (
+		_set_message(AppReleaseStrings.status_create_config_failed_format % (
 			AppReleaseStrings.config_resource_path
 		), true)
 		return
-	_set_message("Created %s with %d target(s). Open it and check each target's export preset." % [
+	_set_message(AppReleaseStrings.status_created_config_format % [
 		AppReleaseStrings.config_resource_path, config.all_targets().size(),
 	])
 	refresh()
@@ -145,24 +195,22 @@ func _on_scaffold_pressed() -> void:
 
 	_scaffold_summary = ""
 	if not created.is_empty():
-		_scaffold_summary += "Created %s. " % ", ".join(created)
+		_scaffold_summary += AppReleaseStrings.status_scaffold_created_format % ", ".join(created)
 	if not skipped.is_empty():
-		_scaffold_summary += "Kept existing %s. " % ", ".join(skipped)
+		_scaffold_summary += AppReleaseStrings.status_scaffold_kept_format % ", ".join(skipped)
 
 	var config := AppReleaseConfig.load_project_config()
 	var extra := config.extra_path_entries if config != null else PackedStringArray()
 	if not _installer.start(extra):
 		_set_message(
-			_scaffold_summary + "Could not start bundle install — is Ruby installed?", true
+			_scaffold_summary + AppReleaseStrings.status_bundle_start_failed, true
 		)
 		refresh()
 		EditorInterface.get_resource_filesystem().scan()
 		return
 
 	_scripts_button.disabled = true
-	_set_message(
-		_scaffold_summary + "Installing Ruby gems (bundle install), this can take a few minutes..."
-	)
+	_set_message(_scaffold_summary + AppReleaseStrings.status_installing_gems)
 	EditorInterface.get_resource_filesystem().scan()
 
 
@@ -170,13 +218,11 @@ func _on_install_finished(succeeded: bool) -> void:
 	_scripts_button.disabled = false
 
 	if succeeded:
-		_set_message(
-			_scaffold_summary
-			+ "Ruby gems installed. Next: fill in your store credentials in fastlane/.env."
-		)
+		_set_message(_scaffold_summary + AppReleaseStrings.status_gems_installed)
 	else:
 		_set_message(
-			_scaffold_summary + "bundle install failed — see %s" % _installer.log_path, true
+			_scaffold_summary + AppReleaseStrings.status_bundle_failed_format % _installer.log_path,
+			true
 		)
 	refresh()
 
@@ -184,10 +230,38 @@ func _on_install_finished(succeeded: bool) -> void:
 func _on_gitignore_pressed() -> void:
 	var added := AppReleaseScaffolder.append_gitignore()
 	if added.is_empty():
-		_set_message(".gitignore already covers everything the plugin writes.")
+		_set_message(AppReleaseStrings.status_gitignore_complete)
 	else:
-		_set_message("Added to .gitignore: %s" % ", ".join(added))
+		_set_message(AppReleaseStrings.status_gitignore_added_format % ", ".join(added))
 	refresh()
+
+
+func _on_credentials_pressed() -> void:
+	var absolute := ProjectSettings.globalize_path(_ENV_PATH)
+	if not FileAccess.file_exists(absolute):
+		_set_message(AppReleaseStrings.status_credentials_missing, true)
+		refresh()
+		return
+	OS.shell_open(absolute)
+	_set_message(AppReleaseStrings.status_credentials_opened_format % absolute)
+
+
+func _on_agent_skills_pressed() -> void:
+	var result := AppReleaseScaffolder.scaffold_agent_skills()
+	var created: PackedStringArray = result["created"]
+	var skipped: PackedStringArray = result["skipped"]
+
+	var message := ""
+	if not created.is_empty():
+		message += AppReleaseStrings.status_agent_skills_created_format % ", ".join(created)
+	if not skipped.is_empty():
+		if not message.is_empty():
+			message += " "
+		message += AppReleaseStrings.status_agent_skills_kept_format % ", ".join(skipped)
+	_set_message(message)
+
+	refresh()
+	EditorInterface.get_resource_filesystem().scan()
 
 
 func _set_message(text: String, is_error: bool = false) -> void:

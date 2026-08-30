@@ -113,8 +113,10 @@ Project → Project Settings → Plugins.
 
 ## First-time setup
 
-Open the **Release** tab and switch to **Setup**. The checklist tells you what is missing;
-work down it top to bottom.
+Open the **Release** tab and switch to **Setup**. The buttons are split into **Required**
+steps, numbered in the order they have to happen, and **Optional** helpers. A step that is
+already done leaves its button greyed out, and the checklist underneath says what is still
+missing.
 
 1. **Create config** — writes `res://release_config.tres` with one target per store your
    export presets can serve. It only creates targets for platforms you actually have a preset
@@ -127,8 +129,8 @@ work down it top to bottom.
    These files are yours to edit — a plugin update will never overwrite them, and anything
    that already exists is left alone. Press the button again any time to re-run
    `bundle install`.
-3. **Update .gitignore** — keeps credentials, logs and build artifacts out of git.
-4. **Fill in your credentials** by editing `fastlane/.env`, which step 2 created for you.
+3. **Edit credentials** — opens `fastlane/.env`, which step 2 created for you, in your text
+   editor.
 
    `fastlane/.env` is gitignored and is the only place secrets live. The plugin never stores
    or transmits them.
@@ -141,6 +143,15 @@ work down it top to bottom.
    | `FIREBASE_SERVICE_CREDENTIALS` | Firebase — optional | Your Firebase project | [Firebase](docs/firebase-app-distribution.md) |
 
    Each guide walks the store's own setup — accounts, keys, permissions — from zero.
+
+The optional buttons below do not affect a release:
+
+- **Update .gitignore** keeps credentials, logs and build artifacts out of git. Nothing
+  breaks without it, but `fastlane/.env` must never be committed.
+- **Edit config** opens `release_config.tres` in the Inspector.
+- **Install agent skills** copies notes for AI coding agents into `.agents/` — how to release
+  this project from the command line, how to verify the setup, how to read a failed run, and
+  how a Godot project is laid out. Plain markdown, yours to edit, and never overwritten.
 
 ## Configure your targets
 
@@ -214,7 +225,9 @@ capabilities, entitlements, extra frameworks — because a full Godot export ove
    target in it: the exports run one after another, then all uploads start.
 5. Press **Fetch** on any column to reload that store's release list.
 
-Notes, groups and the debug checkbox survive an editor restart.
+Notes, groups and the debug checkbox survive an editor restart. They are stored per
+project — notes live in `.release_tools/last_notes.txt`, groups and the debug flag on the
+target itself — so two projects never share them.
 
 ## Per-store setup guides
 
