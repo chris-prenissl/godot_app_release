@@ -1,0 +1,124 @@
+name: Release
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release. Leave empty to use the version in plugin.cfg.'
+        required: false
+        type: string
+      draft:
+        description: 'Create the GitHub release as a draft (publish it by hand afterwards).'
+        required: false
+        default: true
+        type: boolean
+      prerelease:
+        description: 'Mark the release as a pre-release.'
+        required: false
+        default: false
+        type: boolean
+      skip_tests:
+        description: 'Skip the test suite. Only for re-packaging a commit that already passed.'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  test:
+    if: ${{ !inputs.skip_tests }}
+    uses: ./.github/workflows/tests.yml
+
+  release:
+    needs: test
+    if: ${{ always() && needs.test.result != 'failure' && needs.test.result != 'cancelled' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve the version
+        id: version
+        run: |
+          plugin_version="$(sed -n 's/^version="\(.*\)"$/\1/p' addons/app_release/plugin.cfg)"
+          [ -n "$plugin_version" ] || { echo "::error::no version= in addons/app_release/plugin.cfg"; exit 1; }
+
+          version="${{ inputs.version }}"
+          version="${version#v}"
+          if [ -z "$version" ]; then
+            version="$plugin_version"
+          elif [ "$version" != "$plugin_version" ]; then
+            echo "::error::requested version $version does not match plugin.cfg ($plugin_version). Bump plugin.cfg first."
+            exit 1
+          fi
+
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=v$version" >> "$GITHUB_OUTPUT"
+          echo "zip=app_release-$version.zip" >> "$GITHUB_OUTPUT"
+          echo "Releasing $version from $GITHUB_SHA"
+
+      - name: Refuse to overwrite an existing tag
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
+            echo "::error::tag $TAG already exists. Bump the version in plugin.cfg."
+            exit 1
+          fi
+
+      - name: Package the addon
+        env:
+          ZIP: ${{ steps.version.outputs.zip }}
+        run: |
+          zip -r -q "$ZIP" addons/app_release
+          unzip -l "$ZIP"
+
+      - name: Verify the archive
+        env:
+          ZIP: ${{ steps.version.outputs.zip }}
+        run: |
+          fail() { echo "::error::$1"; exit 1; }
+
+          # The Asset Store expects to unpack straight into a project.
+          for required in plugin.cfg app_release.gd LICENSE README.md icon.png; do
+            unzip -Z1 "$ZIP" | grep -qx "addons/app_release/$required" \
+              || fail "missing addons/app_release/$required"
+          done
+
+          # Nothing that belongs to the repository rather than the addon.
+          unzip -Z1 "$ZIP" | grep -v '^addons/app_release/' && fail "the archive reaches outside addons/app_release/"
+
+          unzip -t "$ZIP" >/dev/null || fail "the archive is corrupt"
+          echo "Archive verified: $(unzip -Z1 "$ZIP" | grep -vc '/$') files"
+
+      - name: Create the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+          VERSION: ${{ steps.version.outputs.version }}
+          ZIP: ${{ steps.version.outputs.zip }}
+        run: |
+          gh release create "$TAG" "$ZIP" \
+            --target "$GITHUB_SHA" \
+            --title "App Release $VERSION" \
+            --generate-notes \
+            ${{ inputs.draft && '--draft' || '' }} \
+            ${{ inputs.prerelease && '--prerelease' || '' }}
+
+          echo "### App Release $VERSION" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Tag \`$TAG\` at \`$GITHUB_SHA\`, asset \`$ZIP\`." >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Next: upload that zip as a new version on the [Godot Asset Store](https://store.godotengine.org/)." >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.version.outputs.zip }}
+          path: ${{ steps.version.outputs.zip }}
+          if-no-files-found: error
