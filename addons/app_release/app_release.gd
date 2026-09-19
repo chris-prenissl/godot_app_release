@@ -23,9 +23,13 @@ const _PRESETS_POLL_INTERVAL := 1.0
 var _dock: _ReleaseDock
 var _presets_timer: Timer
 var _presets_modified_time := 0
+var _target_inspector: AppReleaseTargetInspectorPlugin
 
 
 func _enter_tree() -> void:
+	_target_inspector = AppReleaseTargetInspectorPlugin.new()
+	add_inspector_plugin(_target_inspector)
+
 	_dock = _ReleaseDock.new()
 	_dock.name = AppReleaseStrings.plugin_screen_name
 	_dock.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -43,6 +47,9 @@ func _enter_tree() -> void:
 
 
 func _exit_tree() -> void:
+	if _target_inspector != null:
+		remove_inspector_plugin(_target_inspector)
+		_target_inspector = null
 	if _presets_timer != null:
 		_presets_timer.queue_free()
 		_presets_timer = null

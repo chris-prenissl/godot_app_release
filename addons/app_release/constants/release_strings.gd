@@ -226,6 +226,18 @@ const label_open_setup: StringName = "Open Setup"
 const tooltip_open_setup: StringName = (
 	"Go to the Setup tab to create release_config.tres and check what else is missing."
 )
+const label_no_presets: StringName = (
+	"No export presets yet. Add an iOS or Android preset in the Export dialog first, "
+	+ "then come back here."
+)
+const label_open_export: StringName = "Create Export"
+const tooltip_open_export: StringName = "Open Project > Export... to add an export preset."
+const status_export_menu_missing: StringName = (
+	"Could not open the Export dialog — use Project > Export... instead."
+)
+## Menu path and item label of Godot's own Export dialog entry.
+const editor_project_menu_name: StringName = "Project"
+const editor_export_menu_item: StringName = "Export..."
 const label_press_fetch: StringName = "Press Fetch to load"
 
 const placeholder_version: StringName = "0.1.0"

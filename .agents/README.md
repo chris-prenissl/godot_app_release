@@ -38,6 +38,8 @@ addons/app_release/
     scaffolder.gd         Creates release_config.tres and the fastlane files
     version_patcher.gd    Rewrites a version into export_presets.cfg
     ui_layout.gd          HSplitContainer chain helper
+    export_dialog.gd      Opens Godot's Export dialog via the Project menu
+    target_inspector_plugin.gd  "Open Export..." button in the target Inspector
   ui/                     Built in code; there are no .tscn files
     release_dock.gd       The Release + Setup tabs; owns the workers
     group_box.gd          One group panel

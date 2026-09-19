@@ -21,6 +21,7 @@ const _ENV_PATH := "res://fastlane/.env"
 
 var _checklist: VBoxContainer
 var _message: Label
+var _export_button: Button
 var _create_config_button: Button
 var _scripts_button: Button
 var _gitignore_button: Button
@@ -91,6 +92,13 @@ func _build_ui() -> void:
 	)
 	optional.add_child(_gitignore_button)
 
+	_export_button = _button(
+		AppReleaseStrings.label_open_export,
+		AppReleaseStrings.tooltip_open_export,
+		_on_open_export_pressed
+	)
+	optional.add_child(_export_button)
+
 	_open_config_button = _button(
 		AppReleaseStrings.label_setup_edit_config,
 		AppReleaseStrings.tooltip_setup_edit_config,
@@ -157,10 +165,15 @@ func refresh_with(config: AppReleaseConfig) -> void:
 	)
 	_agent_skills_button.disabled = AppReleaseScaffolder.are_agent_skills_scaffolded()
 
-	for entry in AppReleaseEnvironment.run(config):
+	for entry in AppReleaseEnvironment.sorted_by_severity(AppReleaseEnvironment.run(config)):
 		var row := _ChecklistRow.new()
 		row.setup(entry)
 		_checklist.add_child(row)
+
+
+func _on_open_export_pressed() -> void:
+	if not AppReleaseExportDialog.open():
+		_set_message(AppReleaseStrings.status_export_menu_missing, true)
 
 
 func _on_create_config_pressed() -> void:
