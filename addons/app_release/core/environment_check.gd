@@ -23,6 +23,14 @@ static func run(config: AppReleaseConfig) -> Array[Dictionary]:
 	results.append_array(check_targets(config))
 	return results
 
+static func sorted_by_severity(entries: Array[Dictionary]) -> Array[Dictionary]:
+	var sorted: Array[Dictionary] = []
+	for level in [Level.ERROR, Level.WARNING, Level.OK]:
+		for entry in entries:
+			if entry["level"] == level:
+				sorted.append(entry)
+	return sorted
+
 
 static func check_tools() -> Array[Dictionary]:
 	var results: Array[Dictionary] = []
